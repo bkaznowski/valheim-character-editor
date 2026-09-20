@@ -325,6 +325,31 @@ func BuildEdits(sf *fch.SaveFile, sreq SaveRequest) ([]fch.Edit, error) {
 		removeSet[idx] = true
 	}
 
+	// Figure out up front which existing item (if any) absorbs an AddGold
+	// request, as a stack override rather than a separately-emitted edit.
+	// The per-item loop below always receives a Stack value for every item
+	// (the frontend sends full current state every save), so folding the
+	// gold bump into that same pass -- instead of emitting a second,
+	// independent stack edit for the same item -- avoids two edits landing
+	// on the identical byte range (which Apply correctly rejects as
+	// overlapping).
+	newItems := append([]NewItemRequest{}, sreq.AddItems...)
+	goldStackOverride := map[int]uint16{}
+	if sreq.AddGold != nil && *sreq.AddGold > 0 {
+		addedToExisting := false
+		for i := range c.Inventory {
+			it := &c.Inventory[i]
+			if !removeSet[i] && it.PrefabHash == fch.StableHash("Coins") && it.HasStack() {
+				goldStackOverride[i] = it.Stack + *sreq.AddGold
+				addedToExisting = true
+				break
+			}
+		}
+		if !addedToExisting {
+			newItems = append(newItems, NewItemRequest{Name: "Coins", Stack: *sreq.AddGold, Quality: 1})
+		}
+	}
+
 	// Track each surviving item's final grid position (starts at its
 	// current position, overridden by any requested move) so we can
 	// validate the whole layout is collision-free in one pass instead
@@ -345,10 +370,16 @@ func BuildEdits(sf *fch.SaveFile, sreq SaveRequest) ([]fch.Edit, error) {
 			continue // being deleted below; a field edit on it would overlap
 		}
 		it := &c.Inventory[ie.Index]
-		if ie.Quality != nil || ie.Stack != nil || ie.Variant != nil || ie.CrafterID != nil || ie.CrafterName != nil {
+		stack := ie.Stack
+		if override, ok := goldStackOverride[ie.Index]; ok {
+			v := override
+			stack = &v
+			delete(goldStackOverride, ie.Index) // handled here; skip the fallback pass below
+		}
+		if ie.Quality != nil || stack != nil || ie.Variant != nil || ie.CrafterID != nil || ie.CrafterName != nil {
 			fieldEdits, err := fch.SetItemFields(it, fch.ItemFieldUpdate{
 				Quality:     ie.Quality,
-				Stack:       ie.Stack,
+				Stack:       stack,
 				Variant:     ie.Variant,
 				CrafterID:   ie.CrafterID,
 				CrafterName: ie.CrafterName,
@@ -374,24 +405,15 @@ func BuildEdits(sf *fch.SaveFile, sreq SaveRequest) ([]fch.Edit, error) {
 		edits = append(edits, e)
 	}
 
-	newItems := append([]NewItemRequest{}, sreq.AddItems...)
-	if sreq.AddGold != nil && *sreq.AddGold > 0 {
-		addedToExisting := false
-		for i := range c.Inventory {
-			it := &c.Inventory[i]
-			if !removeSet[i] && it.PrefabHash == fch.StableHash("Coins") && it.HasStack() {
-				stackEdits, err := fch.SetItemStack(it, it.Stack+*sreq.AddGold)
-				if err != nil {
-					return nil, err
-				}
-				edits = append(edits, stackEdits...)
-				addedToExisting = true
-				break
-			}
+	// Any gold-target item the client didn't also send a per-item edit for
+	// (a minimal caller that only sent AddGold) still needs its stack bump
+	// applied directly.
+	for idx, newStack := range goldStackOverride {
+		stackEdits, err := fch.SetItemStack(&c.Inventory[idx], newStack)
+		if err != nil {
+			return nil, err
 		}
-		if !addedToExisting {
-			newItems = append(newItems, NewItemRequest{Name: "Coins", Stack: *sreq.AddGold, Quality: 1})
-		}
+		edits = append(edits, stackEdits...)
 	}
 
 	// Validate the surviving/moved items don't collide with each other.
