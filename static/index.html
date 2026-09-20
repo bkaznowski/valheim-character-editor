@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Valheim Character Editor</title>
+<style>
+  :root {
+    --bg-0: #0f1410;
+    --bg-1: #161d17;
+    --card: #1c241d;
+    --card-2: #212b22;
+    --text: #eef1e6;
+    --muted: #93a08d;
+    --border: #313f31;
+    --border-soft: #2a352a;
+    --accent: #58a86d;
+    --accent-2: #d7b56d;
+    --accent-glow: rgba(88, 168, 109, 0.35);
+    --accent-text: #08130a;
+    --warn-bg: #3e2a12;
+    --warn-text: #f0b968;
+    --warn-border: #5c421c;
+    --ok-text: #7fd99a;
+    --danger-text: #e2836f;
+    --row-hover: #232f24;
+    --shadow: rgba(0, 0, 0, 0.45);
+  }
+  @media (prefers-color-scheme: light) {
+    :root {
+      --bg-0: #eef2ea;
+      --bg-1: #e6ece2;
+      --card: #ffffff;
+      --card-2: #f6f8f3;
+      --text: #1c2418;
+      --muted: #5c6b56;
+      --border: #d8e0d1;
+      --border-soft: #e3e9dd;
+      --accent: #2f7a49;
+      --accent-2: #9c7a2e;
+      --accent-glow: rgba(47, 122, 73, 0.18);
+      --accent-text: #ffffff;
+      --warn-bg: #fbeed9;
+      --warn-text: #8a5a1e;
+      --warn-border: #ecd8b0;
+      --ok-text: #2f7a49;
+      --danger-text: #b8402a;
+      --row-hover: #f1f5ee;
+      --shadow: rgba(30, 40, 25, 0.12);
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    display: flex;
+    justify-content: center;
+    padding: 32px 16px 40px;
+    background:
+      radial-gradient(120% 90% at 15% -10%, var(--accent-glow), transparent 55%),
+      radial-gradient(90% 70% at 105% 10%, rgba(215, 181, 109, 0.12), transparent 60%),
+      linear-gradient(180deg, var(--bg-0), var(--bg-1));
+    background-attachment: fixed;
+    min-height: 100vh;
+  }
+  .wrap { width: 100%; max-width: 700px; }
+
+  .hero { display: flex; align-items: center; gap: 16px; margin-bottom: 22px; }
+  .rune-icon { width: 46px; height: 46px; flex-shrink: 0; filter: drop-shadow(0 0 10px var(--accent-glow)); }
+  .rune-icon .ring { transform-origin: 32px 32px; animation: spin 7s linear infinite; }
+  .rune-icon .ring2 { transform-origin: 32px 32px; animation: spin 11s linear infinite reverse; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  h1 {
+    font-size: 1.45rem; margin: 0; letter-spacing: 0.01em;
+    background: linear-gradient(90deg, var(--text), var(--accent-2) 140%);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .subtitle { color: var(--muted); margin: 3px 0 0; font-size: 0.87rem; }
+
+  .card {
+    background: linear-gradient(180deg, var(--card), var(--card-2));
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 8px 24px -12px var(--shadow);
+    animation: rise 0.35s ease both;
+  }
+  @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+
+  label { font-size: 0.76rem; color: var(--muted); display: block; margin-bottom: 7px; text-transform: uppercase; letter-spacing: 0.06em; font-weight: 600; }
+  select, input[type=text], input[type=number] {
+    width: 100%; padding: 11px 13px; border-radius: 9px; border: 1px solid var(--border);
+    background: var(--bg-0); color: var(--text); font-size: 0.95rem;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  select:focus, input:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-glow); }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+  input[type=color] { width: 100%; height: 40px; padding: 3px; border-radius: 9px; border: 1px solid var(--border); background: var(--bg-0); cursor: pointer; }
+
+  .row { display: flex; gap: 10px; align-items: flex-end; }
+  .row > div { flex: 1; min-width: 0; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .grid3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  @media (max-width: 520px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+  @media (max-width: 480px) {
+    .toggle-group { flex-wrap: wrap; }
+    .toggle-group .toggle-slider { display: none; }
+    .toggle-group button { flex: 1 1 45%; padding: 8px 4px; font-size: 0.74rem; }
+    .toggle-group button.active { background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 80%, black)); color: var(--accent-text); border-radius: 7px; }
+  }
+
+  button {
+    padding: 11px 16px; border-radius: 9px; border: none;
+    background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 80%, black));
+    color: var(--accent-text); font-weight: 600; cursor: pointer; font-size: 0.9rem; white-space: nowrap;
+    transition: transform 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease;
+    box-shadow: 0 3px 10px -4px var(--accent-glow);
+  }
+  button:hover { transform: translateY(-1px); opacity: 0.95; }
+  button:active { transform: translateY(0); }
+  button:disabled { opacity: 0.5; cursor: default; transform: none; }
+  button.secondary { background: transparent; border: 1px solid var(--border); color: var(--text); font-weight: 500; box-shadow: none; }
+  button.secondary:hover { border-color: var(--accent); color: var(--accent); background: var(--accent-glow); }
+  button.small { padding: 6px 10px; font-size: 0.78rem; }
+
+  .toggle-group { position: relative; display: flex; background: var(--bg-0); border: 1px solid var(--border); border-radius: 10px; padding: 4px; margin-bottom: 16px; }
+  .toggle-group button { position: relative; z-index: 1; flex: 1; background: transparent; color: var(--muted); font-weight: 600; padding: 9px 8px; box-shadow: none; transition: color 0.2s ease; font-size: 0.82rem; }
+  .toggle-group button.active { color: var(--accent-text); }
+  .toggle-slider {
+    position: absolute; top: 4px; bottom: 4px; left: 4px; width: calc(25% - 4px);
+    background: linear-gradient(180deg, var(--accent), color-mix(in srgb, var(--accent) 80%, black));
+    border-radius: 7px; transition: transform 0.25s cubic-bezier(.4,0,.2,1); box-shadow: 0 3px 10px -4px var(--accent-glow);
+  }
+
+  .meta { font-size: 0.78rem; color: var(--muted); margin-top: 12px; word-break: break-all; display: flex; align-items: center; gap: 6px; }
+  .meta::before { content: "📍"; font-size: 0.85em; }
+
+  table { width: 100%; border-collapse: collapse; margin-top: 4px; }
+  th, td { text-align: left; padding: 9px 6px; font-size: 0.86rem; vertical-align: middle; }
+  th { color: var(--muted); font-weight: 600; font-size: 0.68rem; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
+  tbody tr { border-bottom: 1px solid var(--border-soft); animation: fadeIn 0.3s ease both; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:hover { background: var(--row-hover); }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  td input[type=number] { width: 72px; padding: 6px 8px; font-size: 0.85rem; }
+  .item-name { font-weight: 500; }
+  .item-name .unknown { color: var(--muted); font-style: italic; }
+  .item-sub { color: var(--muted); font-size: 0.74rem; }
+  .equip-badge { display: inline-block; font-size: 0.68rem; padding: 2px 7px; border-radius: 999px; background: var(--accent-glow); color: var(--ok-text); margin-left: 6px; font-weight: 600; }
+
+  .skill-row { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-bottom: 1px solid var(--border-soft); }
+  .skill-row:last-child { border-bottom: none; }
+  .skill-name { width: 120px; flex-shrink: 0; font-size: 0.85rem; font-weight: 500; }
+  .skill-level { width: 52px; flex-shrink: 0; text-align: right; font-variant-numeric: tabular-nums; color: var(--accent-2); font-weight: 600; font-size: 0.85rem; }
+
+  .stat-block { margin-bottom: 18px; }
+  .stat-block:last-child { margin-bottom: 0; }
+  .stat-label-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 6px; }
+  .stat-label-row label { margin-bottom: 0; }
+  .stat-value { font-size: 0.85rem; color: var(--accent-2); font-weight: 600; font-variant-numeric: tabular-nums; }
+
+  .empty, .loading { color: var(--muted); padding: 28px 0; text-align: center; font-size: 0.9rem; }
+  .loading { display: flex; flex-direction: column; align-items: center; gap: 10px; }
+  .spinner { width: 22px; height: 22px; border-radius: 50%; border: 2.5px solid var(--border); border-top-color: var(--accent); animation: spin 0.8s linear infinite; }
+  .error { color: var(--danger-text); font-size: 0.85rem; margin-top: 8px; }
+  .success { color: var(--ok-text); font-size: 0.85rem; margin-top: 8px; }
+  .add-path { margin-top: 12px; }
+  summary { cursor: pointer; color: var(--muted); font-size: 0.83rem; }
+  summary:hover { color: var(--accent); }
+  .section-title { font-size: 0.95rem; font-weight: 700; margin: 0 0 14px; display: flex; align-items: center; gap: 8px; }
+  .section-title::before { content: "◈"; color: var(--accent); font-size: 0.9em; }
+  .hint { color: var(--muted); font-size: 0.78rem; margin-top: 4px; }
+
+  .inv-grid {
+    display: grid;
+    grid-template-columns: repeat(8, 1fr);
+    gap: 4px;
+    padding: 10px;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #241a12, #1a130d);
+    border: 1px solid #3a2c1c;
+    box-shadow: inset 0 2px 10px rgba(0,0,0,0.5);
+  }
+  @media (prefers-color-scheme: light) {
+    .inv-grid { background: linear-gradient(180deg, #d8c4a0, #c9b088); border-color: #a98f63; }
+  }
+  .inv-slot {
+    position: relative;
+    aspect-ratio: 1;
+    border-radius: 6px;
+    background: rgba(0,0,0,0.3);
+    border: 1px solid rgba(255,255,255,0.08);
+    overflow: hidden;
+  }
+  @media (prefers-color-scheme: light) {
+    .inv-slot { background: rgba(255,255,255,0.35); border-color: rgba(0,0,0,0.12); }
+  }
+  .inv-slot.filled { cursor: pointer; transition: transform 0.1s ease, border-color 0.15s ease; }
+  .inv-slot.filled:hover { transform: translateY(-1px); border-color: var(--accent); }
+  .inv-slot.selected { border-color: var(--accent-2); box-shadow: 0 0 0 2px var(--accent-glow); }
+  .inv-slot.equipped { border-color: var(--ok-text); }
+  .inv-slot.removing { opacity: 0.35; }
+  .inv-slot img { width: 100%; height: 100%; object-fit: contain; padding: 3px; box-sizing: border-box; }
+  .inv-slot .fallback-icon { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 0.62rem; font-weight: 700; color: var(--muted); text-align: center; padding: 2px; line-height: 1.1; }
+  .inv-slot .stack-badge {
+    position: absolute; bottom: 1px; right: 3px; font-size: 0.66rem; font-weight: 700;
+    color: #fff; text-shadow: 0 1px 2px #000, 0 0 3px #000;
+  }
+  .inv-slot .quality-dots { position: absolute; bottom: 2px; left: 3px; display: flex; gap: 1.5px; }
+  .inv-slot .quality-dots span { width: 3.5px; height: 3.5px; border-radius: 50%; background: var(--accent-2); box-shadow: 0 0 2px rgba(0,0,0,0.6); }
+  .inv-slot .removing-x { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 1.3rem; font-weight: 700; color: var(--danger-text); }
+  .inv-slot.pending { border: 1px dashed var(--accent-2); background: rgba(215, 181, 109, 0.12); }
+  .inv-slot .pending-badge { position: absolute; top: 1px; left: 2px; font-size: 0.52rem; font-weight: 800; color: var(--accent-2); letter-spacing: 0.03em; }
+  .inv-slot.drag-over { outline: 2px dashed var(--accent); outline-offset: -2px; }
+  .inv-slot[draggable="true"] { cursor: grab; }
+  .inv-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; font-size: 0.72rem; color: var(--muted); }
+  .inv-legend span { display: inline-flex; align-items: center; gap: 4px; }
+  .inv-legend .dot { width: 6px; height: 6px; border-radius: 50%; }
+
+  .power-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+  .power-chip {
+    display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--bg-0); color: var(--muted); font-size: 0.85rem; font-weight: 600;
+    cursor: pointer; transition: all 0.15s ease; user-select: none;
+  }
+  .power-chip input { accent-color: var(--accent); }
+  .power-chip.on { border-color: var(--accent); color: var(--text); background: var(--accent-glow); }
+  .trophy-list { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+  .trophy-chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 6px 8px 6px 12px; border-radius: 999px;
+    border: 1px solid var(--border-soft); background: var(--bg-0); font-size: 0.82rem;
+  }
+  .trophy-chip.removing { opacity: 0.4; text-decoration: line-through; }
+  .trophy-remove-btn {
+    background: transparent; border: none; color: var(--muted); cursor: pointer; font-size: 0.95rem;
+    padding: 0 4px; box-shadow: none; line-height: 1;
+  }
+  .trophy-remove-btn:hover { color: var(--danger-text); transform: none; }
+
+  .item-detail {
+    margin-top: 14px; padding: 14px; border-radius: 10px;
+    background: var(--card-2); border: 1px solid var(--border);
+    display: flex; gap: 14px; align-items: flex-start; animation: rise 0.2s ease both;
+  }
+  .item-detail .detail-icon { width: 52px; height: 52px; flex-shrink: 0; border-radius: 8px; background: rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center; overflow: hidden; }
+  .item-detail .detail-icon img { width: 100%; height: 100%; object-fit: contain; padding: 3px; box-sizing: border-box; }
+  .item-detail .detail-body { flex: 1; min-width: 0; }
+  .item-detail .detail-title { font-weight: 700; font-size: 0.98rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .item-detail .detail-fields { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
+  .item-detail .detail-fields > div { flex: 1; min-width: 80px; }
+  .item-detail .detail-fields label { margin-bottom: 4px; }
+
+  .save-bar {
+    position: sticky; bottom: 0; margin-top: 20px; padding: 14px 18px;
+    background: linear-gradient(180deg, var(--card), var(--card-2));
+    border: 1px solid var(--border); border-radius: 14px;
+    box-shadow: 0 -8px 24px -12px var(--shadow);
+    display: flex; align-items: center; gap: 12px; justify-content: space-between; flex-wrap: wrap;
+  }
+  .save-status { font-size: 0.83rem; flex: 1; min-width: 160px; }
+
+  ::-webkit-scrollbar { width: 10px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 6px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="hero">
+    <svg class="rune-icon" viewBox="0 0 64 64" fill="none">
+      <circle class="ring" cx="32" cy="32" r="22" stroke="var(--accent)" stroke-width="3" stroke-dasharray="6 7" opacity="0.85"/>
+      <circle class="ring2" cx="32" cy="32" r="15" stroke="var(--accent-2)" stroke-width="2.5" stroke-dasharray="4 6" opacity="0.7"/>
+      <path d="M32 20 L32 44 M25 27 L39 37 M39 27 L25 37" stroke="var(--accent)" stroke-width="2.5" stroke-linecap="round" opacity="0.9"/>
+    </svg>
+    <div>
+      <h1>Valheim Character Editor</h1>
+      <p class="subtitle">Edit stats, skills, appearance and inventory in a character save, then save it back.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <label for="charSelect">Character</label>
+    <div class="row">
+      <div><select id="charSelect"></select></div>
+      <button id="rescanBtn" class="secondary" title="Re-scan for save files">&#8635; Rescan</button>
+    </div>
+    <div class="meta" id="charMeta"></div>
+
+    <details class="add-path">
+      <summary>Can't find your character? Add a path manually</summary>
+      <div class="row" style="margin-top:10px;">
+        <div><input type="text" id="customPath" placeholder="C:\path\to\YourCharacter.fch"></div>
+        <button id="addPathBtn" class="secondary">Add</button>
+      </div>
+      <div class="error" id="addPathError"></div>
+    </details>
+  </div>
+
+  <div id="editorArea"></div>
+</div>
+
+<script>
+let characters = [];
+let dto = null;      // the currently loaded (and locally edited) character
+let loadedPath = null;
+let activeTab = "stats";
+
+const charSelect = document.getElementById("charSelect");
+const charMeta = document.getElementById("charMeta");
+const editorArea = document.getElementById("editorArea");
+
+async function loadCharacterList(preserveSelection) {
+  const prev = preserveSelection ? charSelect.value : null;
+  const res = await fetch("/api/characters");
+  characters = (await res.json()) || [];
+  characters.sort((a, b) => new Date(b.modTime) - new Date(a.modTime));
+
+  charSelect.innerHTML = "";
+  if (characters.length === 0) {
+    const opt = document.createElement("option");
+    opt.textContent = "No characters found - add a path below";
+    charSelect.appendChild(opt);
+    editorArea.innerHTML = '<div class="card"><div class="empty">No character selected.</div></div>';
+    return;
+  }
+  for (const c of characters) {
+    const opt = document.createElement("option");
+    opt.value = c.path;
+    opt.textContent = `${c.name}  ·  ${c.source}`;
+    charSelect.appendChild(opt);
+  }
+  if (prev && characters.some(c => c.path === prev)) {
+    charSelect.value = prev;
+  }
+  updateMeta();
+  await loadSelected();
+}
+
+function updateMeta() {
+  const c = characters.find(c => c.path === charSelect.value);
+  charMeta.textContent = c ? c.path : "";
+}
+
+async function loadSelected() {
+  const path = charSelect.value;
+  if (!path) return;
+  editorArea.innerHTML = '<div class="card"><div class="loading"><div class="spinner"></div>Loading character...</div></div>';
+  try {
+    const res = await fetch("/api/load?path=" + encodeURIComponent(path));
+    if (!res.ok) throw new Error(await res.text());
+    dto = await res.json();
+    loadedPath = path;
+  } catch (e) {
+    editorArea.innerHTML = '<div class="card"><div class="error">Failed to load: ' + escapeHtml(e.message) + '</div></div>';
+    dto = null;
+    return;
+  }
+  renderEditor();
+}
+
+function renderEditor() {
+  if (!dto) return;
+  let html = '';
+  html += '<div class="card">';
+  html += '<div class="toggle-group" id="tabGroup">';
+  html += '<div class="toggle-slider" id="tabSlider"></div>';
+  html += '<button data-tab="stats" class="' + (activeTab==="stats"?"active":"") + '">Stats &amp; Appearance</button>';
+  html += '<button data-tab="skills" class="' + (activeTab==="skills"?"active":"") + '">Skills</button>';
+  html += '<button data-tab="inventory" class="' + (activeTab==="inventory"?"active":"") + '">Inventory &amp; Gold</button>';
+  html += '<button data-tab="progression" class="' + (activeTab==="progression"?"active":"") + '">Progression</button>';
+  html += '</div>';
+  html += '<div id="tabContent"></div>';
+  html += '</div>';
+
+  html += '<div class="save-bar">';
+  html += '<div class="save-status" id="saveStatus">Editing <b>' + escapeHtml(dto.name) + '</b> (save format v' + dto.version + ')</div>';
+  html += '<button id="saveAsBtn" class="secondary">Save As Copy&hellip;</button>';
+  html += '<button id="saveBtn">Save Character</button>';
+  html += '</div>';
+
+  editorArea.innerHTML = html;
+  positionTabSlider();
+  renderTabContent();
+
+  document.querySelectorAll('#tabGroup button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      activeTab = btn.dataset.tab;
+      document.querySelectorAll('#tabGroup button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      positionTabSlider();
+      renderTabContent();
+    });
+  });
+  document.getElementById('saveBtn').addEventListener('click', () => doSave(false));
+  document.getElementById('saveAsBtn').addEventListener('click', () => doSave(true));
+}
+
+function positionTabSlider() {
+  const idx = ["stats", "skills", "inventory", "progression"].indexOf(activeTab);
+  document.getElementById('tabSlider').style.transform = `translateX(${idx * 100}%)`;
+}
+
+function renderTabContent() {
+  const el = document.getElementById('tabContent');
+  if (activeTab === "stats") el.innerHTML = renderStatsTab();
+  else if (activeTab === "skills") el.innerHTML = renderSkillsTab();
+  else if (activeTab === "inventory") el.innerHTML = renderInventoryTab();
+  else el.innerHTML = renderProgressionTab();
+  wireTabEvents();
+}
+
+function renderStatsTab() {
+  let h = '';
+  h += '<div class="section-title">Identity</div>';
+  h += '<div class="grid2">';
+  h += '<div><label for="charName">Name</label><input type="text" id="charName" value="' + escapeHtml(dto.name) + '"></div>';
+  h += '<div><label for="playerModel">Model</label><div class="toggle-group" id="modelToggle" style="margin-bottom:0;">' +
+       '<div class="toggle-slider" style="width:calc(50% - 4px);transform:translateX(' + (dto.playerModel ? '100%' : '0') + ');"></div>' +
+       '<button type="button" data-model="0" class="' + (dto.playerModel === 0 ? 'active' : '') + '">Masculine</button>' +
+       '<button type="button" data-model="1" class="' + (dto.playerModel === 1 ? 'active' : '') + '">Feminine</button>' +
+       '</div></div>';
+  h += '</div>';
+
+  h += '<div class="section-title" style="margin-top:22px;">Vitals</div>';
+  h += statSlider('maxHealth', 'Max Health', dto.maxHealth, 1, Math.max(dto.maxHealth, 1000));
+  h += statSlider('health', 'Health', dto.health, 1, Math.max(dto.maxHealth, dto.health, 1000));
+  h += statSlider('stamina', 'Stamina', dto.stamina, 1, Math.max(dto.stamina, 500));
+  h += statSlider('eitr', 'Eitr', dto.eitr, 1, Math.max(dto.maxEitr, dto.eitr, 500));
+  h += statSlider('maxEitr', 'Max Eitr', dto.maxEitr, 1, Math.max(dto.maxEitr, 500));
+
+  h += '<div class="section-title" style="margin-top:22px;">Appearance</div>';
+  h += '<div class="grid2">';
+  h += '<div><label for="skinColor">Skin Color</label><input type="color" id="skinColor" value="' + vecToHex(dto.skinColor) + '"></div>';
+  h += '<div><label for="hairColor">Hair Color</label><input type="color" id="hairColor" value="' + vecToHex(dto.hairColor) + '"></div>';
+  h += '</div>';
+  h += '<div class="grid2" style="margin-top:14px;">';
+  h += '<div><label for="beardPicker">Beard Style</label><input type="text" id="beardPicker" list="beardOptions" placeholder="Search beard styles" value="' + escapeHtml((dto.beard||'') + (dto.beardName ? ' — ' + dto.beardName : '')) + '"><datalist id="beardOptions"></datalist></div>';
+  h += '<div><label for="hairPicker">Hair Style</label><input type="text" id="hairPicker" list="hairOptions" placeholder="Search hair styles" value="' + escapeHtml((dto.hair||'') + (dto.hairName ? ' — ' + dto.hairName : '')) + '"><datalist id="hairOptions"></datalist></div>';
+  h += '</div>';
+  h += '<div class="hint">Pick a suggestion (shown as "PrefabName — Real Name") or type an exact style prefab name.</div>';
+  return h;
+}
+
+function statSlider(key, label, value, min, max) {
+  return '<div class="stat-block">' +
+    '<div class="stat-label-row"><label>' + label + '</label><span class="stat-value" id="val_' + key + '">' + Math.round(value) + '</span></div>' +
+    '<input type="range" id="' + key + '" min="' + min + '" max="' + Math.ceil(max) + '" step="1" value="' + Math.round(value) + '">' +
+    '</div>';
+}
+
+function renderSkillsTab() {
+  if (!dto.skills || dto.skills.length === 0) return '<div class="empty">No skills recorded yet.</div>';
+  let h = '<div class="section-title">Skill levels (0&ndash;100)</div>';
+  dto.skills.slice().sort((a,b) => a.name.localeCompare(b.name)).forEach(s => {
+    h += '<div class="skill-row">' +
+      '<div class="skill-name">' + escapeHtml(s.name) + '</div>' +
+      '<input type="range" min="0" max="100" step="0.1" value="' + s.level + '" data-skill-type="' + s.type + '" class="skill-slider">' +
+      '<div class="skill-level" id="skillval_' + s.type + '">' + s.level.toFixed(1) + '</div>' +
+      '</div>';
+  });
+  return h;
+}
+
+function renderProgressionTab() {
+  if (!dto._pendingAddTrophies) dto._pendingAddTrophies = [];
+  if (!dto._pendingRemoveTrophies) dto._pendingRemoveTrophies = [];
+
+  let h = '<div class="section-title">Forsaken Powers</div>';
+  h += '<div class="hint" style="margin-bottom:10px;">Toggle which boss altars this character has already activated (permanent, one per boss).</div>';
+  h += '<div class="power-grid">';
+  dto.powers.forEach(p => {
+    h += '<label class="power-chip' + (p.unlocked ? ' on' : '') + '"><input type="checkbox" class="power-toggle" data-key="' + p.key + '" ' + (p.unlocked ? 'checked' : '') + '>' + escapeHtml(p.name) + '</label>';
+  });
+  h += '</div>';
+
+  h += '<div class="section-title" style="margin-top:22px;">Trophies</div>';
+  h += '<div class="row">';
+  h += '<div><input type="text" id="trophyPicker" list="trophyOptions" placeholder="Search trophies to add"><datalist id="trophyOptions"></datalist></div>';
+  h += '<button id="addTrophyBtn" class="secondary">Add</button>';
+  h += '</div>';
+  if (dto._pendingAddTrophies.length > 0) {
+    h += '<div class="hint" style="margin-top:8px;"><b>Pending additions:</b></div>';
+    dto._pendingAddTrophies.forEach((t, i) => {
+      h += '<div class="skill-row"><div class="skill-name" style="width:auto;flex:1;">' + escapeHtml(t.label) + '</div><button class="small secondary cancel-trophy-add-btn" data-i="' + i + '">Cancel</button></div>';
+    });
+  }
+  h += '<div class="trophy-list">';
+  dto.trophies.forEach(t => {
+    const removing = dto._pendingRemoveTrophies.includes(t.prefab);
+    h += '<div class="trophy-chip' + (removing ? ' removing' : '') + '">' + escapeHtml(t.name || t.prefab) +
+         '<button class="trophy-remove-btn" data-prefab="' + escapeHtml(t.prefab) + '" title="' + (removing ? 'Undo remove' : 'Remove') + '">' + (removing ? '↺' : '×') + '</button></div>';
+  });
+  if (dto.trophies.length === 0) h += '<div class="empty">No trophies collected yet.</div>';
+  h += '</div>';
+
+  h += '<div class="section-title" style="margin-top:22px;">Crafting Knowledge</div>';
+  h += '<div class="hint" style="margin-bottom:10px;">Known recipes: <b>' + dto.recipeCount + '</b> &nbsp;·&nbsp; known materials: <b>' + dto.materialCount + '</b> &nbsp;·&nbsp; crafting stations: <b>' + dto.stationCount + '</b></div>';
+  h += '<div class="row">';
+  h += '<button id="unlockRecipesBtn" class="secondary">Unlock All Recipes</button>';
+  h += '<button id="unlockMaterialsBtn" class="secondary">Unlock All Materials</button>';
+  h += '</div>';
+  h += '<div class="hint" id="unlockHint">' + ((dto._unlockRecipes || dto._unlockMaterials) ? 'Pending: will unlock ' + [dto._unlockRecipes ? 'all recipes' : null, dto._unlockMaterials ? 'all materials' : null].filter(Boolean).join(' and ') + ' on next save' : 'Adds every known-in-this-game-version item/piece to the respective list.') + '</div>';
+
+  h += '<div class="section-title" style="margin-top:22px;">Active Food Buffs</div>';
+  if (!dto.foods || dto.foods.length === 0) {
+    h += '<div class="empty">No active food buffs.</div>';
+  } else {
+    dto.foods.forEach(f => {
+      h += '<div class="row" style="margin-bottom:10px;align-items:flex-end;">';
+      h += '<div><label>Food ' + (f.index+1) + '</label><input type="text" class="food-name" data-idx="' + f.index + '" list="foodOptions" value="' + escapeHtml(f.name + (f.displayName ? ' — ' + f.displayName : '')) + '"></div>';
+      h += '<div style="flex:0 0 110px;"><label>' + (f.time !== null && f.time !== undefined ? 'Time left (s)' : 'Health') + '</label><input type="number" class="food-time" data-idx="' + f.index + '" value="' + (f.time !== null && f.time !== undefined ? f.time : f.health) + '"></div>';
+      h += '</div>';
+    });
+    h += '<datalist id="foodOptions"></datalist>';
+  }
+  return h;
+}
+
+function renderInventoryTab() {
+  if (!dto._pendingRemove) dto._pendingRemove = [];
+  if (!dto._pendingAdd) dto._pendingAdd = [];
+  if (dto._selectedIndex === undefined) dto._selectedIndex = null;
+  if (dto.inventoryRows === undefined) dto.inventoryRows = dto.defaultRows;
+
+  let h = '<div class="section-title">Inventory Expansion</div>';
+  h += '<div class="row">';
+  h += '<div><label>Rows purchased from vendor</label><input type="range" id="inventoryRows" min="' + dto.defaultRows + '" max="9" step="1" value="' + dto.inventoryRows + '"></div>';
+  h += '<div style="flex:0 0 auto;align-self:center;"><span class="stat-value" id="val_inventoryRows">' + dto.inventoryRows + '</span> / 9 rows</div>';
+  h += '</div>';
+  h += '<div class="hint">Base inventory is ' + dto.defaultRows + ' rows &times; ' + dto.inventoryCols + ' columns. Each row above that represents one permanent vendor upgrade (Valheim itself caps this at 9). Raising or lowering it here adds or removes those purchases directly.</div>';
+
+  h += '<div class="section-title" style="margin-top:22px;">Add Gold</div>';
+  h += '<div class="row">';
+  h += '<div><input type="number" id="goldAmount" min="0" step="1" placeholder="Amount of gold to add"></div>';
+  h += '<button id="addGoldBtn" class="secondary">Add to Coins Stack</button>';
+  h += '</div>';
+  h += '<div class="hint" id="goldHint">' + (dto.pendingGold ? ('Pending: +' + dto.pendingGold + ' gold on next save') : 'Adds to an existing Coins stack, or creates one in a free inventory slot.') + '</div>';
+
+  h += '<div class="section-title" style="margin-top:22px;">Add Item</div>';
+  h += '<div class="row">';
+  h += '<div><label for="newItemName">Item</label><input type="text" id="newItemName" list="itemNameOptions" placeholder="Search by name, e.g. Storm Fang"><datalist id="itemNameOptions"></datalist></div>';
+  h += '<div style="flex:0 0 90px;"><label for="newItemStack">Stack</label><input type="number" id="newItemStack" min="1" value="1"></div>';
+  h += '<div style="flex:0 0 90px;"><label for="newItemQuality">Quality</label><input type="number" id="newItemQuality" min="1" max="9" value="1"></div>';
+  h += '<button id="addItemBtn" class="secondary">Add</button>';
+  h += '</div>';
+  h += '<div class="hint">Pick a suggestion (shown as "PrefabName — Real Name") or type an exact Valheim prefab name directly -- unrecognized exact names still work (the item is stored by its name hash), just without a friendly label until reloaded.</div>';
+  h += '<div class="section-title" style="margin-top:22px;">Inventory (' + dto.inventory.length + ' items' + (dto._pendingAdd.length ? ' + ' + dto._pendingAdd.length + ' pending' : '') + ')</div>';
+  if (dto.inventory.length === 0 && dto._pendingAdd.length === 0) {
+    h += '<div class="empty">No items.</div>';
+  } else {
+    h += renderInventoryGrid();
+    h += '<div class="inv-legend">' +
+         '<span><span class="dot" style="background:var(--accent-2);"></span>quality pips</span>' +
+         '<span>number in corner = stack size</span>' +
+         '<span><span class="dot" style="background:var(--ok-text);"></span>equipped border</span>' +
+         '<span><span class="dot" style="background:var(--accent-2);border:1px dashed var(--accent-2);"></span>pending addition</span>' +
+         '<span>drag a slot to move it &middot; click to edit</span></div>';
+    h += renderSelectedItemDetail();
+  }
+  return h;
+}
+
+// Ensures every pending-add entry has a tentative grid slot assigned so it
+// can be shown (and dragged) in the grid before the real save picks its
+// final position.
+function assignPendingSlots() {
+  const occupied = new Set();
+  dto.inventory.forEach(it => { if (!dto._pendingRemove.includes(it.index)) occupied.add(it.gridX + ',' + it.gridY); });
+  dto._pendingAdd.forEach(ni => {
+    if (ni.gridX === undefined || occupied.has(ni.gridX + ',' + ni.gridY)) {
+      const slot = nextFreeSlotJS(occupied);
+      ni.gridX = slot.x; ni.gridY = slot.y;
+    }
+    occupied.add(ni.gridX + ',' + ni.gridY);
+  });
+}
+
+function nextFreeSlotJS(occupied) {
+  for (let y = 0; y < 10; y++) {
+    for (let x = 0; x < 8; x++) {
+      if (!occupied.has(x + ',' + y)) return { x, y };
+    }
+  }
+  return { x: 0, y: 0 };
+}
+
+function gridSlots() {
+  assignPendingSlots();
+  const cols = 8;
+  let maxY = (dto.inventoryRows || dto.defaultRows || 4) - 1;
+  dto.inventory.forEach(it => { maxY = Math.max(maxY, it.gridY); });
+  dto._pendingAdd.forEach(ni => { maxY = Math.max(maxY, ni.gridY); });
+  const rows = maxY + 1;
+  const byPos = {};
+  dto.inventory.forEach(it => { if (!dto._pendingRemove.includes(it.index)) byPos[it.gridX + ',' + it.gridY] = { kind: 'real', item: it }; });
+  dto._pendingAdd.forEach((ni, i) => { byPos[ni.gridX + ',' + ni.gridY] = { kind: 'pending', item: ni, pendingIndex: i }; });
+  return { cols, rows, byPos };
+}
+
+function slotIconHtml(prefabName, hasIcon) {
+  if (hasIcon === false) return '';
+  const fallback = (prefabName || '?').slice(0, 3).toUpperCase();
+  return '<img src="/api/icon?prefab=' + encodeURIComponent(prefabName) + '" alt="" data-fallback="' + escapeHtml(fallback) + '" onerror="handleIconError(this)">';
+}
+
+function handleIconError(img) {
+  const div = document.createElement('div');
+  div.className = 'fallback-icon';
+  div.textContent = img.dataset.fallback || '?';
+  img.replaceWith(div);
+}
+
+function renderInventoryGrid() {
+  const { cols, rows, byPos } = gridSlots();
+  let h = '<div class="inv-grid" style="grid-template-columns:repeat(' + cols + ',1fr);">';
+  for (let y = 0; y < rows; y++) {
+    for (let x = 0; x < cols; x++) {
+      const entry = byPos[x + ',' + y];
+      if (!entry) { h += '<div class="inv-slot" data-x="' + x + '" data-y="' + y + '"></div>'; continue; }
+      if (entry.kind === 'real') {
+        const it = entry.item;
+        const removing = dto._pendingRemove.includes(it.index);
+        const selected = dto._selectedIndex === 'r' + it.index;
+        let cls = 'inv-slot filled';
+        if (removing) cls += ' removing';
+        if (selected) cls += ' selected';
+        if (it.equipped) cls += ' equipped';
+        h += '<div class="' + cls + '" data-x="' + x + '" data-y="' + y + '" data-kind="real" data-idx="' + it.index + '" draggable="' + (!removing) + '" title="' + escapeHtml(it.name || ('Unknown hash ' + it.hash)) + '">';
+        if (it.hasIcon) h += slotIconHtml(it.prefabName, true);
+        else h += '<div class="fallback-icon">' + escapeHtml(fallbackLabel(it)) + '</div>';
+        if (it.hasStack && it.stack > 1) h += '<div class="stack-badge">' + it.stack + '</div>';
+        if (it.hasQuality && it.quality > 1) h += '<div class="quality-dots">' + '<span></span>'.repeat(Math.min(it.quality, 5)) + '</div>';
+        if (removing) h += '<div class="removing-x">&times;</div>';
+        h += '</div>';
+      } else {
+        const ni = entry.item;
+        const selected = dto._selectedIndex === 'p' + entry.pendingIndex;
+        h += '<div class="inv-slot filled pending" data-x="' + x + '" data-y="' + y + '" data-kind="pending" data-idx="' + entry.pendingIndex + '" draggable="true" title="' + escapeHtml(ni.label || ni.name) + ' (pending)">';
+        h += slotIconHtml(ni.name, undefined);
+        if (ni.stack > 1) h += '<div class="stack-badge">' + ni.stack + '</div>';
+        if (ni.quality > 1) h += '<div class="quality-dots">' + '<span></span>'.repeat(Math.min(ni.quality, 5)) + '</div>';
+        h += '<div class="pending-badge">NEW</div>';
+        h += '</div>';
+      }
+    }
+  }
+  h += '</div>';
+  return h;
+}
+
+function fallbackLabel(it) {
+  const words = (it.name || it.prefabName || '?').split(/\s+/).filter(Boolean);
+  const label = words.length > 1 ? words.map(w => w[0]).join('').slice(0, 3) : (words[0] || '?').slice(0, 3);
+  return label.toUpperCase();
+}
+
+function renderSelectedItemDetail() {
+  const sel = dto._selectedIndex;
+  if (sel === null || sel === undefined) return '<div class="hint" style="margin-top:10px;">Click a slot above to edit that item.</div>';
+
+  if (sel[0] === 'p') {
+    const i = parseInt(sel.slice(1), 10);
+    const ni = dto._pendingAdd[i];
+    if (!ni) return '<div class="hint" style="margin-top:10px;">Click a slot above to edit that item.</div>';
+    let h = '<div class="item-detail">';
+    h += '<div class="detail-icon">' + slotIconHtml(ni.name, undefined) + '</div>';
+    h += '<div class="detail-body">';
+    h += '<div class="detail-title">' + escapeHtml(ni.label || ni.name) + '<span class="equip-badge">pending</span></div>';
+    h += '<div class="item-sub">' + escapeHtml(ni.name) + '</div>';
+    h += '<div class="detail-fields">';
+    h += '<div><label>Quality</label><input type="number" min="1" max="9" class="pending-quality" data-i="' + i + '" value="' + ni.quality + '"></div>';
+    h += '<div><label>Stack</label><input type="number" min="1" max="999" class="pending-stack" data-i="' + i + '" value="' + ni.stack + '"></div>';
+    h += '<div style="flex:0 0 auto;align-self:flex-end;"><button class="secondary cancel-add-btn" data-i="' + i + '">Cancel</button></div>';
+    h += '</div></div></div>';
+    return h;
+  }
+
+  const idx = parseInt(sel.slice(1), 10);
+  const it = dto.inventory.find(i => i.index === idx);
+  if (!it) return '<div class="hint" style="margin-top:10px;">Click a slot above to edit that item.</div>';
+  const removing = dto._pendingRemove.includes(it.index);
+  let h = '<div class="item-detail">';
+  h += '<div class="detail-icon">' + (it.hasIcon ? slotIconHtml(it.prefabName, true) : '') + '</div>';
+  h += '<div class="detail-body">';
+  h += '<div class="detail-title">' + escapeHtml(it.name || ('Unknown (hash ' + it.hash + ')')) +
+       (it.equipped ? '<span class="equip-badge">equipped</span>' : '') +
+       (removing ? '<span class="equip-badge" style="background:var(--warn-bg);color:var(--warn-text);">removing</span>' : '') + '</div>';
+  if (it.prefabName && it.prefabName !== it.name) h += '<div class="item-sub">' + escapeHtml(it.prefabName) + '</div>';
+  if (it.crafterName) h += '<div class="item-sub">crafted by ' + escapeHtml(it.crafterName) + '</div>';
+  h += '<div class="detail-fields">';
+  h += '<div><label>Quality (max ' + it.maxQuality + ')</label><input type="number" min="1" max="' + it.maxQuality + '" class="item-quality" data-idx="' + it.index + '" value="' + it.quality + '" ' + (removing?'disabled':'') + '></div>';
+  h += '<div><label>Stack</label><input type="number" min="1" max="999" class="item-stack" data-idx="' + it.index + '" value="' + it.stack + '" ' + (removing?'disabled':'') + '></div>';
+  h += '<div><label>Durability</label><input type="number" min="0" class="item-durability" data-idx="' + it.index + '" value="' + it.durability + '" ' + (removing?'disabled':'') + '></div>';
+  h += '<div><label>Variant</label><input type="number" min="0" class="item-variant" data-idx="' + it.index + '" value="' + it.variant + '" ' + (removing?'disabled':'') + '></div>';
+  h += '<div><label>Crafter ID</label><input type="number" class="item-crafter-id" data-idx="' + it.index + '" value="' + it.crafterID + '" ' + (removing?'disabled':'') + '></div>';
+  h += '<div style="flex:1 1 140px;"><label>Crafter Name</label><input type="text" class="item-crafter-name" data-idx="' + it.index + '" value="' + escapeHtml(it.crafterName) + '" ' + (removing?'disabled':'') + '></div>';
+  h += '<div style="flex:0 0 auto;align-self:flex-end;">' + (removing
+    ? '<button class="secondary restore-btn" data-idx="' + it.index + '">Restore</button>'
+    : '<button class="secondary remove-btn" data-idx="' + it.index + '">Remove</button>') + '</div>';
+  h += '</div></div></div>';
+  return h;
+}
+
+function wireTabEvents() {
+  document.querySelectorAll('input[type=range][id^="health"], input[type=range][id^="maxHealth"], input[type=range][id^="stamina"], input[type=range][id^="eitr"], input[type=range][id^="maxEitr"]').forEach(el => {
+    el.addEventListener('input', () => {
+      dto[el.id] = parseFloat(el.value);
+      const v = document.getElementById('val_' + el.id);
+      if (v) v.textContent = Math.round(dto[el.id]);
+    });
+  });
+  const skin = document.getElementById('skinColor');
+  if (skin) skin.addEventListener('input', () => { dto.skinColor = hexToVec(skin.value); });
+  const hairColorEl = document.getElementById('hairColor');
+  if (hairColorEl) hairColorEl.addEventListener('input', () => { dto.hairColor = hexToVec(hairColorEl.value); });
+
+  const nameEl = document.getElementById('charName');
+  if (nameEl) nameEl.addEventListener('input', () => { dto.name = nameEl.value; });
+
+  document.querySelectorAll('#modelToggle button').forEach(btn => btn.addEventListener('click', () => {
+    dto.playerModel = parseInt(btn.dataset.model, 10);
+    renderTabContent();
+  }));
+
+  const beardEl = document.getElementById('beardPicker');
+  if (beardEl) beardEl.addEventListener('change', () => {
+    dto.beard = prefabFromPicked(beardEl.value, dto.beard);
+  });
+  const hairStyleEl = document.getElementById('hairPicker');
+  if (hairStyleEl) hairStyleEl.addEventListener('change', () => {
+    dto.hair = prefabFromPicked(hairStyleEl.value, dto.hair);
+  });
+
+  document.querySelectorAll('.skill-slider').forEach(el => {
+    el.addEventListener('input', () => {
+      const type = parseInt(el.dataset.skillType, 10);
+      const level = parseFloat(el.value);
+      const s = dto.skills.find(s => s.type === type);
+      if (s) s.level = level;
+      document.getElementById('skillval_' + type).textContent = level.toFixed(1);
+    });
+  });
+
+  document.querySelectorAll('.item-quality').forEach(el => el.addEventListener('input', () => {
+    const it = dto.inventory[parseInt(el.dataset.idx,10)];
+    const capped = Math.max(1, Math.min(parseInt(el.value || "1", 10), it.maxQuality || 9));
+    it.quality = capped;
+  }));
+  document.querySelectorAll('.item-stack').forEach(el => el.addEventListener('input', () => {
+    dto.inventory[parseInt(el.dataset.idx,10)].stack = parseInt(el.value || "1", 10);
+  }));
+  document.querySelectorAll('.item-durability').forEach(el => el.addEventListener('input', () => {
+    dto.inventory[parseInt(el.dataset.idx,10)].durability = parseInt(el.value || "0", 10);
+  }));
+
+  document.querySelectorAll('.inv-slot.filled').forEach(el => el.addEventListener('click', () => {
+    const sel = (el.dataset.kind === 'pending' ? 'p' : 'r') + el.dataset.idx;
+    dto._selectedIndex = (dto._selectedIndex === sel) ? null : sel;
+    renderTabContent();
+  }));
+
+  wireInventoryDragAndDrop();
+
+  document.querySelectorAll('.pending-quality').forEach(el => el.addEventListener('input', () => {
+    dto._pendingAdd[parseInt(el.dataset.i,10)].quality = parseInt(el.value || "1", 10);
+  }));
+  document.querySelectorAll('.pending-stack').forEach(el => el.addEventListener('input', () => {
+    dto._pendingAdd[parseInt(el.dataset.i,10)].stack = parseInt(el.value || "1", 10);
+  }));
+
+  const rowsEl = document.getElementById('inventoryRows');
+  if (rowsEl) {
+    rowsEl.addEventListener('input', () => {
+      dto.inventoryRows = parseInt(rowsEl.value, 10);
+      document.getElementById('val_inventoryRows').textContent = dto.inventoryRows;
+    });
+    rowsEl.addEventListener('change', () => renderTabContent());
+  }
+
+  const goldBtn = document.getElementById('addGoldBtn');
+  if (goldBtn) goldBtn.addEventListener('click', () => {
+    const amt = parseInt(document.getElementById('goldAmount').value || "0", 10);
+    if (amt > 0) {
+      dto.pendingGold = (dto.pendingGold || 0) + amt;
+      document.getElementById('goldHint').textContent = 'Pending: +' + dto.pendingGold + ' gold on next save';
+      document.getElementById('goldAmount').value = '';
+    }
+  });
+
+  document.querySelectorAll('.remove-btn').forEach(el => el.addEventListener('click', () => {
+    const idx = parseInt(el.dataset.idx, 10);
+    if (!dto._pendingRemove.includes(idx)) dto._pendingRemove.push(idx);
+    renderTabContent();
+  }));
+  document.querySelectorAll('.restore-btn').forEach(el => el.addEventListener('click', () => {
+    const idx = parseInt(el.dataset.idx, 10);
+    dto._pendingRemove = dto._pendingRemove.filter(i => i !== idx);
+    renderTabContent();
+  }));
+
+  const newItemNameEl = document.getElementById('newItemName');
+  if (newItemNameEl) newItemNameEl.addEventListener('change', async () => {
+    const prefab = prefabFromPicked(newItemNameEl.value, '');
+    const qEl = document.getElementById('newItemQuality');
+    if (!prefab || !qEl) return;
+    try {
+      const res = await fetch('/api/maxquality?prefab=' + encodeURIComponent(prefab));
+      const maxQ = await res.json();
+      qEl.max = maxQ;
+      if (parseInt(qEl.value || "1", 10) > maxQ) qEl.value = maxQ;
+    } catch (e) { /* ignore -- keep whatever max was already set */ }
+  });
+
+  const addItemBtn = document.getElementById('addItemBtn');
+  if (addItemBtn) addItemBtn.addEventListener('click', () => {
+    const raw = document.getElementById('newItemName').value.trim();
+    const stack = parseInt(document.getElementById('newItemStack').value || "1", 10);
+    const qEl = document.getElementById('newItemQuality');
+    const quality = Math.max(1, Math.min(parseInt(qEl.value || "1", 10), parseInt(qEl.max || "9", 10)));
+    if (!raw || stack < 1) return;
+    const name = prefabFromPicked(raw, raw);
+    dto._pendingAdd.push({ name, stack, quality, label: raw });
+    document.getElementById('newItemName').value = '';
+    document.getElementById('newItemStack').value = '1';
+    document.getElementById('newItemQuality').value = '1';
+    renderTabContent();
+  });
+  document.querySelectorAll('.cancel-add-btn').forEach(el => el.addEventListener('click', () => {
+    dto._pendingAdd.splice(parseInt(el.dataset.i, 10), 1);
+    dto._selectedIndex = null;
+    renderTabContent();
+  }));
+
+  document.querySelectorAll('.item-variant').forEach(el => el.addEventListener('input', () => {
+    dto.inventory[parseInt(el.dataset.idx,10)].variant = parseInt(el.value || "0", 10);
+  }));
+  document.querySelectorAll('.item-crafter-id').forEach(el => el.addEventListener('input', () => {
+    dto.inventory[parseInt(el.dataset.idx,10)].crafterID = parseInt(el.value || "0", 10);
+  }));
+  document.querySelectorAll('.item-crafter-name').forEach(el => el.addEventListener('input', () => {
+    dto.inventory[parseInt(el.dataset.idx,10)].crafterName = el.value;
+  }));
+
+  document.querySelectorAll('.power-toggle').forEach(el => el.addEventListener('change', () => {
+    const p = dto.powers.find(p => p.key === el.dataset.key);
+    if (p) p.unlocked = el.checked;
+    renderTabContent();
+  }));
+
+  const addTrophyBtn = document.getElementById('addTrophyBtn');
+  if (addTrophyBtn) addTrophyBtn.addEventListener('click', () => {
+    const raw = document.getElementById('trophyPicker').value.trim();
+    if (!raw) return;
+    const prefab = prefabFromPicked(raw, raw);
+    dto._pendingAddTrophies.push({ prefab, label: raw });
+    document.getElementById('trophyPicker').value = '';
+    renderTabContent();
+  });
+  document.querySelectorAll('.cancel-trophy-add-btn').forEach(el => el.addEventListener('click', () => {
+    dto._pendingAddTrophies.splice(parseInt(el.dataset.i, 10), 1);
+    renderTabContent();
+  }));
+  document.querySelectorAll('.trophy-remove-btn').forEach(el => el.addEventListener('click', () => {
+    const prefab = el.dataset.prefab;
+    if (dto._pendingRemoveTrophies.includes(prefab)) {
+      dto._pendingRemoveTrophies = dto._pendingRemoveTrophies.filter(p => p !== prefab);
+    } else {
+      dto._pendingRemoveTrophies.push(prefab);
+    }
+    renderTabContent();
+  }));
+
+  const unlockRecipesBtn = document.getElementById('unlockRecipesBtn');
+  if (unlockRecipesBtn) unlockRecipesBtn.addEventListener('click', () => {
+    dto._unlockRecipes = true;
+    renderTabContent();
+  });
+  const unlockMaterialsBtn = document.getElementById('unlockMaterialsBtn');
+  if (unlockMaterialsBtn) unlockMaterialsBtn.addEventListener('click', () => {
+    dto._unlockMaterials = true;
+    renderTabContent();
+  });
+
+  document.querySelectorAll('.food-name').forEach(el => el.addEventListener('change', () => {
+    const f = dto.foods[parseInt(el.dataset.idx,10)];
+    f.name = prefabFromPicked(el.value, f.name);
+  }));
+  document.querySelectorAll('.food-time').forEach(el => el.addEventListener('input', () => {
+    const f = dto.foods[parseInt(el.dataset.idx,10)];
+    const v = parseFloat(el.value || "0");
+    if (f.time !== null && f.time !== undefined) f.time = v; else f.health = v;
+  }));
+
+  ensureItemNameOptions();
+}
+
+function wireInventoryDragAndDrop() {
+  const grid = document.querySelector('.inv-grid');
+  if (!grid) return;
+
+  grid.querySelectorAll('.inv-slot[draggable="true"]').forEach(el => {
+    el.addEventListener('dragstart', ev => {
+      ev.dataTransfer.effectAllowed = 'move';
+      ev.dataTransfer.setData('text/plain', el.dataset.kind + ':' + el.dataset.idx);
+    });
+  });
+
+  grid.querySelectorAll('.inv-slot').forEach(el => {
+    el.addEventListener('dragover', ev => {
+      ev.preventDefault();
+      ev.dataTransfer.dropEffect = 'move';
+      el.classList.add('drag-over');
+    });
+    el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
+    el.addEventListener('drop', ev => {
+      ev.preventDefault();
+      el.classList.remove('drag-over');
+      const raw = ev.dataTransfer.getData('text/plain');
+      if (!raw) return;
+      const [kind, idxStr] = raw.split(':');
+      const targetX = parseInt(el.dataset.x, 10), targetY = parseInt(el.dataset.y, 10);
+      moveInventoryEntry(kind, parseInt(idxStr, 10), targetX, targetY);
+    });
+  });
+}
+
+function findRealAt(x, y) {
+  return dto.inventory.find(it => it.gridX === x && it.gridY === y && !dto._pendingRemove.includes(it.index));
+}
+function findPendingAt(x, y) {
+  return dto._pendingAdd.findIndex(ni => ni.gridX === x && ni.gridY === y);
+}
+
+function moveInventoryEntry(kind, idx, targetX, targetY) {
+  if (kind === 'real') {
+    const src = dto.inventory.find(it => it.index === idx);
+    if (!src) return;
+    if (src.gridX === targetX && src.gridY === targetY) return;
+    const targetReal = findRealAt(targetX, targetY);
+    const targetPendingIdx = findPendingAt(targetX, targetY);
+    if (targetReal) {
+      const tx = targetReal.gridX, ty = targetReal.gridY;
+      targetReal.gridX = src.gridX; targetReal.gridY = src.gridY;
+      src.gridX = tx; src.gridY = ty;
+    } else if (targetPendingIdx >= 0) {
+      const p = dto._pendingAdd[targetPendingIdx];
+      const tx = p.gridX, ty = p.gridY;
+      p.gridX = src.gridX; p.gridY = src.gridY;
+      src.gridX = tx; src.gridY = ty;
+    } else {
+      src.gridX = targetX; src.gridY = targetY;
+    }
+  } else {
+    const p = dto._pendingAdd[idx];
+    if (!p) return;
+    if (p.gridX === targetX && p.gridY === targetY) return;
+    const targetReal = findRealAt(targetX, targetY);
+    const targetPendingIdx = findPendingAt(targetX, targetY);
+    if (targetReal) {
+      const tx = targetReal.gridX, ty = targetReal.gridY;
+      targetReal.gridX = p.gridX; targetReal.gridY = p.gridY;
+      p.gridX = tx; p.gridY = ty;
+    } else if (targetPendingIdx >= 0 && targetPendingIdx !== idx) {
+      const p2 = dto._pendingAdd[targetPendingIdx];
+      const tx = p2.gridX, ty = p2.gridY;
+      p2.gridX = p.gridX; p2.gridY = p.gridY;
+      p.gridX = tx; p.gridY = ty;
+    } else {
+      p.gridX = targetX; p.gridY = targetY;
+    }
+  }
+  renderTabContent();
+}
+
+// Datalist suggestions everywhere are formatted "PrefabName — Real Name";
+// typing/picking an exact prefab name directly also works.
+function prefabFromPicked(raw, fallback) {
+  raw = (raw || '').trim();
+  if (!raw) return fallback;
+  return raw.includes(' — ') ? raw.split(' — ')[0].trim() : raw;
+}
+
+const optionsCache = {};
+async function ensureOptions(listId, endpoint) {
+  const list = document.getElementById(listId);
+  if (!list) return;
+  if (!optionsCache[endpoint]) {
+    try {
+      const res = await fetch(endpoint);
+      optionsCache[endpoint] = (await res.json()) || [];
+    } catch (e) {
+      optionsCache[endpoint] = [];
+    }
+  }
+  list.innerHTML = optionsCache[endpoint].map(n => '<option value="' + escapeHtml(n) + '">').join('');
+}
+
+async function ensureItemNameOptions() {
+  await ensureOptions('itemNameOptions', '/api/itemnames');
+  await ensureOptions('beardOptions', '/api/beardnames');
+  await ensureOptions('hairOptions', '/api/hairnames');
+  await ensureOptions('trophyOptions', '/api/trophynames');
+  await ensureOptions('foodOptions', '/api/itemnames');
+}
+
+function vecToHex(v) {
+  const c = v.map(x => Math.round(Math.max(0, Math.min(1, x)) * 255).toString(16).padStart(2, '0'));
+  return '#' + c.join('');
+}
+function hexToVec(hex) {
+  const r = parseInt(hex.substr(1,2),16)/255, g = parseInt(hex.substr(3,2),16)/255, b = parseInt(hex.substr(5,2),16)/255;
+  return [r, g, b];
+}
+
+async function doSave(asCopy) {
+  const statusEl = document.getElementById('saveStatus');
+  let saveAsPath = "";
+  if (asCopy) {
+    saveAsPath = prompt("Save a copy to this path:", loadedPath.replace(/\.fch$/i, "_edited.fch"));
+    if (!saveAsPath) return;
+  }
+  const payload = {
+    path: loadedPath,
+    saveAsPath: saveAsPath,
+    name: dto.name,
+    health: dto.health,
+    maxHealth: dto.maxHealth,
+    stamina: dto.stamina,
+    eitr: dto.eitr,
+    maxEitr: dto.maxEitr,
+    playerModel: dto.playerModel,
+    beard: dto.beard,
+    hair: dto.hair,
+    skinColor: dto.skinColor,
+    hairColor: dto.hairColor,
+    skills: dto.skills.map(s => ({ type: s.type, level: s.level })),
+    inventoryRows: dto.inventoryRows,
+    items: dto.inventory.map(it => {
+      const e = {
+        index: it.index, durability: it.durability, gridX: it.gridX, gridY: it.gridY,
+        quality: it.quality, stack: it.stack, variant: it.variant,
+        crafterID: it.crafterID, crafterName: it.crafterName,
+      };
+      return e;
+    }),
+    powersOn: (dto.powers || []).filter(p => p.unlocked).map(p => p.key),
+    powersOff: (dto.powers || []).filter(p => !p.unlocked).map(p => p.key),
+  };
+  if (dto.pendingGold) payload.addGold = dto.pendingGold;
+  if (dto._pendingRemove && dto._pendingRemove.length > 0) payload.removeIndexes = dto._pendingRemove;
+  if (dto._pendingAdd && dto._pendingAdd.length > 0) payload.addItems = dto._pendingAdd;
+  if (dto._pendingAddTrophies && dto._pendingAddTrophies.length > 0) payload.addTrophies = dto._pendingAddTrophies.map(t => t.prefab);
+  if (dto._pendingRemoveTrophies && dto._pendingRemoveTrophies.length > 0) payload.removeTrophies = dto._pendingRemoveTrophies;
+  if (dto._unlockRecipes) payload.unlockAllRecipes = true;
+  if (dto._unlockMaterials) payload.unlockAllMaterials = true;
+  if (dto.foods && dto.foods.length > 0) {
+    payload.foods = dto.foods.map(f => ({ index: f.index, name: f.name, time: (f.time !== null && f.time !== undefined) ? f.time : f.health }));
+  }
+
+  statusEl.innerHTML = '<span class="loading" style="padding:0;display:inline-flex;gap:6px;"><span class="spinner" style="width:14px;height:14px;"></span>Saving&hellip;</span>';
+  try {
+    const res = await fetch("/api/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    if (!res.ok) throw new Error(await res.text());
+    dto = await res.json();
+    if (saveAsPath) loadedPath = saveAsPath;
+    statusEl.innerHTML = '<span class="success">&#10003; Saved' + (saveAsPath ? ' to ' + escapeHtml(saveAsPath) : '') + '.</span>';
+    renderEditor();
+  } catch (e) {
+    statusEl.innerHTML = '<span class="error">Save failed: ' + escapeHtml(e.message) + '</span>';
+  }
+}
+
+function escapeHtml(s) {
+  const d = document.createElement("div");
+  d.textContent = String(s);
+  return d.innerHTML;
+}
+
+charSelect.addEventListener("change", () => { updateMeta(); loadSelected(); });
+document.getElementById("rescanBtn").addEventListener("click", () => loadCharacterList(true));
+
+document.getElementById("addPathBtn").addEventListener("click", async () => {
+  const path = document.getElementById("customPath").value.trim();
+  const errEl = document.getElementById("addPathError");
+  errEl.textContent = "";
+  if (!path) return;
+  try {
+    const res = await fetch("/api/characters/add", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ path })
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const cf = await res.json();
+    await loadCharacterList(false);
+    charSelect.value = cf.path;
+    updateMeta();
+    await loadSelected();
+  } catch (e) {
+    errEl.textContent = e.message;
+  }
+});
+
+loadCharacterList(false);
+</script>
+</body>
+</html>
