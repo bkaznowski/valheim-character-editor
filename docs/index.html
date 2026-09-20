@@ -259,7 +259,8 @@
   .item-detail .detail-fields label { margin-bottom: 4px; }
 
   .inv-two-col { display: flex; gap: 22px; align-items: flex-start; }
-  .inv-col-left { flex: 1; min-width: 260px; }
+  .inv-col-left { flex: 1; min-width: 260px; border-radius: 12px; transition: box-shadow 0.15s ease; }
+  .inv-col-left.drag-remove-over { box-shadow: 0 0 0 2px var(--danger-text); }
   .inv-col-right { flex: 1.25; min-width: 300px; }
   @media (max-width: 860px) { .inv-two-col { flex-direction: column; } }
 
@@ -286,6 +287,7 @@
   }
   @media (prefers-color-scheme: light) { .cat-item { background: rgba(255,255,255,0.4); border-color: rgba(0,0,0,0.12); } }
   .cat-item:hover { transform: translateY(-1px); border-color: var(--accent); }
+  .cat-item.cat-item-match { border-color: var(--accent-2); box-shadow: 0 0 0 1px var(--accent-2); }
   .cat-item img { width: 100%; height: 100%; object-fit: contain; padding: 3px; box-sizing: border-box; }
   .cat-item .fallback-icon { font-size: 0.56rem; }
   .cat-item .cat-item-label {
@@ -584,17 +586,17 @@ function renderInventoryTab() {
   h += '<div class="hint">Base inventory is ' + dto.defaultRows + ' rows &times; ' + dto.inventoryCols + ' columns. Each row above that represents one permanent vendor upgrade (Valheim itself caps this at 9). Raising or lowering it here adds or removes those purchases directly.</div>';
 
   h += '<div class="inv-two-col" style="margin-top:22px;">';
-  h += '<div class="inv-col-left">';
+  h += '<div class="inv-col-left" id="invColLeft">';
   h += '<div class="section-title">Add Items</div>';
   h += '<div class="row">';
-  h += '<div><label for="newItemName">Search by name</label><input type="text" id="newItemName" list="itemNameOptions" placeholder="e.g. Storm Fang"><datalist id="itemNameOptions"></datalist></div>';
+  h += '<div><label for="newItemName">Search by name</label><input type="text" id="newItemName" list="itemNameOptions" placeholder="e.g. Storm Fang" autocomplete="off"><datalist id="itemNameOptions"></datalist></div>';
   h += '<div style="flex:0 0 80px;"><label for="newItemStack">Stack</label><input type="number" id="newItemStack" min="1" value="1"></div>';
   h += '<div style="flex:0 0 80px;"><label for="newItemQuality">Quality</label><input type="number" id="newItemQuality" min="1" max="9" value="1"></div>';
   h += '<button id="addItemBtn" class="secondary">Add</button>';
   h += '</div>';
-  h += '<div class="hint">Pick a suggestion (shown as "PrefabName — Real Name") or type an exact Valheim prefab name directly -- unrecognized exact names still work (the item is stored by its name hash), just without a friendly label until reloaded.</div>';
+  h += '<div class="hint">Pick a suggestion (shown as "PrefabName — Real Name") or type an exact Valheim prefab name directly -- unrecognized exact names still work (the item is stored by its name hash), just without a friendly label until reloaded. Typing also filters the browser below.</div>';
   h += '<div class="section-title" style="margin-top:18px;">Browse by Type</div>';
-  h += '<div class="hint" style="margin-bottom:6px;">Don\'t know the name? Open a category, then drag an icon onto a free inventory slot, or click it to add at the next free slot.</div>';
+  h += '<div class="hint" style="margin-bottom:6px;">Drag an icon onto a free inventory slot (or click it to add at the next free slot). Drag an inventory item back in here to remove it.</div>';
   h += '<div class="cat-browser" id="catBrowser"><div class="cat-loading">Loading item catalog&hellip;</div></div>';
   h += '</div>'; // inv-col-left
 
@@ -862,6 +864,7 @@ function wireTabEvents() {
       if (parseInt(qEl.value || "1", 10) > maxQ) qEl.value = maxQ;
     } catch (e) { /* ignore -- keep whatever max was already set */ }
   });
+  if (newItemNameEl) newItemNameEl.addEventListener('input', () => filterCategoryBrowser(newItemNameEl.value));
 
   const addItemBtn = document.getElementById('addItemBtn');
   if (addItemBtn) addItemBtn.addEventListener('click', () => {
@@ -926,7 +929,10 @@ function wireTabEvents() {
   }));
 
   ensureItemNameOptions();
-  if (document.getElementById('catBrowser')) renderItemCatalogInto('catBrowser');
+  if (document.getElementById('catBrowser')) {
+    renderItemCatalogInto('catBrowser');
+    wireRemoveDropZone();
+  }
 }
 
 function wireInventoryDragAndDrop() {
@@ -1003,30 +1009,98 @@ function renderCategoryBrowserHtml(catalog) {
   return h;
 }
 
+let catalogGroupsCache = null;
+
+function ensureCategoryBodyRendered(det) {
+  const body = det.querySelector('.cat-body');
+  if (body.dataset.rendered) return body;
+  body.dataset.rendered = '1';
+  let h = '';
+  catalogGroupsCache[det.dataset.category].forEach(entry => {
+    h += '<div class="cat-item" draggable="true" data-prefab="' + escapeHtml(entry.prefab) + '" data-name="' + escapeHtml(entry.name.toLowerCase()) + '" title="' + escapeHtml(entry.name) + '">';
+    h += entry.hasIcon ? slotIconHtml(entry.prefab, true) : '<div class="fallback-icon">' + escapeHtml(entry.prefab.slice(0,3).toUpperCase()) + '</div>';
+    h += '<div class="cat-item-label">' + escapeHtml(entry.name) + '</div>';
+    h += '</div>';
+  });
+  body.innerHTML = h;
+  body.querySelectorAll('.cat-item').forEach(el => {
+    el.addEventListener('dragstart', ev => {
+      ev.dataTransfer.effectAllowed = 'copy';
+      ev.dataTransfer.setData('text/plain', 'newitem:' + el.dataset.prefab);
+    });
+    el.addEventListener('click', () => addCatalogItemNextFreeSlot(el.dataset.prefab));
+  });
+  return body;
+}
+
 function wireCategoryBrowser(catalog) {
   const { groups } = groupCatalogByCategory(catalog);
+  catalogGroupsCache = groups;
   document.querySelectorAll('#catBrowser .cat-details').forEach(det => {
     det.addEventListener('toggle', () => {
-      if (!det.open) return;
-      const body = det.querySelector('.cat-body');
-      if (body.dataset.rendered) return;
-      body.dataset.rendered = '1';
-      let h = '';
-      groups[det.dataset.category].forEach(entry => {
-        h += '<div class="cat-item" draggable="true" data-prefab="' + escapeHtml(entry.prefab) + '" title="' + escapeHtml(entry.name) + '">';
-        h += entry.hasIcon ? slotIconHtml(entry.prefab, true) : '<div class="fallback-icon">' + escapeHtml(entry.prefab.slice(0,3).toUpperCase()) + '</div>';
-        h += '<div class="cat-item-label">' + escapeHtml(entry.name) + '</div>';
-        h += '</div>';
-      });
-      body.innerHTML = h;
-      body.querySelectorAll('.cat-item').forEach(el => {
-        el.addEventListener('dragstart', ev => {
-          ev.dataTransfer.effectAllowed = 'copy';
-          ev.dataTransfer.setData('text/plain', 'newitem:' + el.dataset.prefab);
-        });
-        el.addEventListener('click', () => addCatalogItemNextFreeSlot(el.dataset.prefab));
-      });
+      if (det.open) ensureCategoryBodyRendered(det);
     });
+  });
+}
+
+// Filters the category browser as the user types in the name search box:
+// matching items are highlighted, non-matching items and empty categories
+// are hidden (forcing lazy-rendered categories open so their items can be
+// checked). Clearing the query restores the normal collapsed state.
+function filterCategoryBrowser(query) {
+  if (!catalogGroupsCache) return;
+  const q = (query || '').trim().toLowerCase();
+  document.querySelectorAll('#catBrowser .cat-details').forEach(det => {
+    if (!q) {
+      det.style.display = '';
+      det.removeAttribute('open');
+      const body = det.querySelector('.cat-body');
+      body.querySelectorAll('.cat-item').forEach(el => {
+        el.style.display = '';
+        el.classList.remove('cat-item-match');
+      });
+      return;
+    }
+    const body = ensureCategoryBodyRendered(det);
+    let anyMatch = false;
+    body.querySelectorAll('.cat-item').forEach(el => {
+      const matches = el.dataset.name.includes(q) || el.dataset.prefab.toLowerCase().includes(q);
+      el.style.display = matches ? '' : 'none';
+      el.classList.toggle('cat-item-match', matches);
+      if (matches) anyMatch = true;
+    });
+    det.style.display = anyMatch ? '' : 'none';
+    if (anyMatch) det.setAttribute('open', ''); else det.removeAttribute('open');
+  });
+}
+
+// Lets an existing inventory item be dragged back onto the item browser to
+// remove it -- a real item is marked pending-remove (same as the Remove
+// button), a not-yet-saved pending item is simply un-added.
+function wireRemoveDropZone() {
+  const zone = document.getElementById('invColLeft');
+  if (!zone) return;
+  zone.addEventListener('dragover', ev => {
+    ev.preventDefault();
+    zone.classList.add('drag-remove-over');
+  });
+  zone.addEventListener('dragleave', ev => {
+    if (!zone.contains(ev.relatedTarget)) zone.classList.remove('drag-remove-over');
+  });
+  zone.addEventListener('drop', ev => {
+    ev.preventDefault();
+    zone.classList.remove('drag-remove-over');
+    const raw = ev.dataTransfer.getData('text/plain');
+    if (!raw || raw.startsWith('newitem:')) return;
+    const [kind, idxStr] = raw.split(':');
+    const idx = parseInt(idxStr, 10);
+    if (kind === 'real') {
+      if (!dto._pendingRemove.includes(idx)) dto._pendingRemove.push(idx);
+    } else if (kind === 'pending') {
+      dto._pendingAdd.splice(idx, 1);
+    }
+    dto._selectedIndex = null;
+    renderTabContent();
   });
 }
 
