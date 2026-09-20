@@ -123,6 +123,10 @@ func hairNames(this js.Value, args []js.Value) interface{} {
 	return toJSONRaw(fch.KnownHairOptions())
 }
 
+func itemCatalog(this js.Value, args []js.Value) interface{} {
+	return toJSONRaw(fch.KnownItemCatalog())
+}
+
 func toJSONRaw(v interface{}) string {
 	b, _ := json.Marshal(v)
 	return string(b)
@@ -156,6 +160,7 @@ func main() {
 	api.Set("trophyNames", js.FuncOf(trophyNames))
 	api.Set("beardNames", js.FuncOf(beardNames))
 	api.Set("hairNames", js.FuncOf(hairNames))
+	api.Set("itemCatalog", js.FuncOf(itemCatalog))
 	api.Set("maxQuality", js.FuncOf(maxQuality))
 	api.Set("iconPNG", js.FuncOf(iconPNG))
 	js.Global().Set("valheimApi", api)

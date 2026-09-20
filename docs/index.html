@@ -65,7 +65,7 @@
     background-attachment: fixed;
     min-height: 100vh;
   }
-  .wrap { width: 100%; max-width: 700px; }
+  .wrap { width: 100%; max-width: 1080px; }
 
   .hero { display: flex; align-items: center; gap: 16px; margin-bottom: 22px; }
   .rune-icon { width: 46px; height: 46px; flex-shrink: 0; filter: drop-shadow(0 0 10px var(--accent-glow)); }
@@ -257,6 +257,42 @@
   .item-detail .detail-fields { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
   .item-detail .detail-fields > div { flex: 1; min-width: 80px; }
   .item-detail .detail-fields label { margin-bottom: 4px; }
+
+  .inv-two-col { display: flex; gap: 22px; align-items: flex-start; }
+  .inv-col-left { flex: 1; min-width: 260px; }
+  .inv-col-right { flex: 1.25; min-width: 300px; }
+  @media (max-width: 860px) { .inv-two-col { flex-direction: column; } }
+
+  .cat-browser { margin-top: 10px; }
+  details.cat-details {
+    border: 1px solid var(--border-soft); border-radius: 9px; margin-bottom: 6px;
+    background: var(--bg-0); overflow: hidden;
+  }
+  details.cat-details summary {
+    padding: 10px 12px; font-size: 0.85rem; font-weight: 600; color: var(--text);
+    list-style: none; display: flex; align-items: center; justify-content: space-between;
+  }
+  details.cat-details summary::-webkit-details-marker { display: none; }
+  details.cat-details summary::after { content: "+"; color: var(--muted); font-weight: 700; }
+  details.cat-details[open] summary::after { content: "\2212"; }
+  details.cat-details summary .cat-count { color: var(--muted); font-weight: 500; font-size: 0.78rem; margin-right: auto; margin-left: 8px; }
+  .cat-body {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(56px, 1fr)); gap: 5px;
+    padding: 10px; border-top: 1px solid var(--border-soft); max-height: 320px; overflow-y: auto;
+  }
+  .cat-item {
+    aspect-ratio: 1; border-radius: 7px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08);
+    cursor: grab; position: relative; overflow: hidden; transition: transform 0.1s ease, border-color 0.15s ease;
+  }
+  @media (prefers-color-scheme: light) { .cat-item { background: rgba(255,255,255,0.4); border-color: rgba(0,0,0,0.12); } }
+  .cat-item:hover { transform: translateY(-1px); border-color: var(--accent); }
+  .cat-item img { width: 100%; height: 100%; object-fit: contain; padding: 3px; box-sizing: border-box; }
+  .cat-item .fallback-icon { font-size: 0.56rem; }
+  .cat-item .cat-item-label {
+    position: absolute; inset: auto 0 0 0; font-size: 0.56rem; text-align: center; padding: 1px 2px;
+    background: rgba(0,0,0,0.65); color: #fff; line-height: 1.1; max-height: 2.1em; overflow: hidden;
+  }
+  .cat-loading { color: var(--muted); font-size: 0.82rem; padding: 6px 0; }
 
   .save-bar {
     position: sticky; bottom: 0; margin-top: 20px; padding: 14px 18px;
@@ -464,10 +500,9 @@ function renderStatsTab() {
   h += '<div><label for="hairColor">Hair Color</label><input type="color" id="hairColor" value="' + vecToHex(dto.hairColor) + '"></div>';
   h += '</div>';
   h += '<div class="grid2" style="margin-top:14px;">';
-  h += '<div><label for="beardPicker">Beard Style</label><input type="text" id="beardPicker" list="beardOptions" placeholder="Search beard styles" value="' + escapeHtml((dto.beard||'') + (dto.beardName ? ' — ' + dto.beardName : '')) + '"><datalist id="beardOptions"></datalist></div>';
-  h += '<div><label for="hairPicker">Hair Style</label><input type="text" id="hairPicker" list="hairOptions" placeholder="Search hair styles" value="' + escapeHtml((dto.hair||'') + (dto.hairName ? ' — ' + dto.hairName : '')) + '"><datalist id="hairOptions"></datalist></div>';
+  h += '<div><label for="beardPicker">Beard Style</label><select id="beardPicker"><option value="' + escapeHtml(dto.beard||'') + '">Loading&hellip;</option></select></div>';
+  h += '<div><label for="hairPicker">Hair Style</label><select id="hairPicker"><option value="' + escapeHtml(dto.hair||'') + '">Loading&hellip;</option></select></div>';
   h += '</div>';
-  h += '<div class="hint">Pick a suggestion (shown as "PrefabName — Real Name") or type an exact style prefab name.</div>';
   return h;
 }
 
@@ -492,9 +527,6 @@ function renderSkillsTab() {
 }
 
 function renderProgressionTab() {
-  if (!dto._pendingAddTrophies) dto._pendingAddTrophies = [];
-  if (!dto._pendingRemoveTrophies) dto._pendingRemoveTrophies = [];
-
   let h = '<div class="section-title">Forsaken Powers</div>';
   h += '<div class="hint" style="margin-bottom:10px;">Toggle which boss altars this character has already activated (permanent, one per boss).</div>';
   h += '<div class="power-grid">';
@@ -503,24 +535,16 @@ function renderProgressionTab() {
   });
   h += '</div>';
 
-  h += '<div class="section-title" style="margin-top:22px;">Trophies</div>';
-  h += '<div class="row">';
-  h += '<div><input type="text" id="trophyPicker" list="trophyOptions" placeholder="Search trophies to add"><datalist id="trophyOptions"></datalist></div>';
-  h += '<button id="addTrophyBtn" class="secondary">Add</button>';
-  h += '</div>';
-  if (dto._pendingAddTrophies.length > 0) {
-    h += '<div class="hint" style="margin-top:8px;"><b>Pending additions:</b></div>';
-    dto._pendingAddTrophies.forEach((t, i) => {
-      h += '<div class="skill-row"><div class="skill-name" style="width:auto;flex:1;">' + escapeHtml(t.label) + '</div><button class="small secondary cancel-trophy-add-btn" data-i="' + i + '">Cancel</button></div>';
-    });
-  }
-  h += '<div class="trophy-list">';
-  dto.trophies.forEach(t => {
-    const removing = dto._pendingRemoveTrophies.includes(t.prefab);
-    h += '<div class="trophy-chip' + (removing ? ' removing' : '') + '">' + escapeHtml(t.name || t.prefab) +
-         '<button class="trophy-remove-btn" data-prefab="' + escapeHtml(t.prefab) + '" title="' + (removing ? 'Undo remove' : 'Remove') + '">' + (removing ? '↺' : '×') + '</button></div>';
+  h += '<div class="section-title" style="margin-top:22px;">Active Guardian Power</div>';
+  h += '<div class="hint" style="margin-bottom:10px;">The power buff currently in effect (with its cooldown) -- separate from the permanent unlocks above.</div>';
+  h += '<div class="grid2">';
+  h += '<div><label for="guardianPower">Active Power</label><select id="guardianPower">';
+  h += '<option value=""' + (dto.guardianPower ? '' : ' selected') + '>None</option>';
+  dto.powers.forEach(p => {
+    h += '<option value="' + escapeHtml(p.key) + '"' + (dto.guardianPower === p.key ? ' selected' : '') + '>' + escapeHtml(p.name) + '</option>';
   });
-  if (dto.trophies.length === 0) h += '<div class="empty">No trophies collected yet.</div>';
+  h += '</select></div>';
+  h += '<div><label for="guardianPowerCooldown">Cooldown Remaining (seconds)</label><input type="number" id="guardianPowerCooldown" min="0" step="1" value="' + Math.round(dto.guardianPowerCooldown || 0) + '"></div>';
   h += '</div>';
 
   h += '<div class="section-title" style="margin-top:22px;">Crafting Knowledge</div>';
@@ -559,22 +583,23 @@ function renderInventoryTab() {
   h += '</div>';
   h += '<div class="hint">Base inventory is ' + dto.defaultRows + ' rows &times; ' + dto.inventoryCols + ' columns. Each row above that represents one permanent vendor upgrade (Valheim itself caps this at 9). Raising or lowering it here adds or removes those purchases directly.</div>';
 
-  h += '<div class="section-title" style="margin-top:22px;">Add Gold</div>';
+  h += '<div class="inv-two-col" style="margin-top:22px;">';
+  h += '<div class="inv-col-left">';
+  h += '<div class="section-title">Add Items</div>';
   h += '<div class="row">';
-  h += '<div><input type="number" id="goldAmount" min="0" step="1" placeholder="Amount of gold to add"></div>';
-  h += '<button id="addGoldBtn" class="secondary">Add to Coins Stack</button>';
-  h += '</div>';
-  h += '<div class="hint" id="goldHint">' + (dto.pendingGold ? ('Pending: +' + dto.pendingGold + ' gold on next save') : 'Adds to an existing Coins stack, or creates one in a free inventory slot.') + '</div>';
-
-  h += '<div class="section-title" style="margin-top:22px;">Add Item</div>';
-  h += '<div class="row">';
-  h += '<div><label for="newItemName">Item</label><input type="text" id="newItemName" list="itemNameOptions" placeholder="Search by name, e.g. Storm Fang"><datalist id="itemNameOptions"></datalist></div>';
-  h += '<div style="flex:0 0 90px;"><label for="newItemStack">Stack</label><input type="number" id="newItemStack" min="1" value="1"></div>';
-  h += '<div style="flex:0 0 90px;"><label for="newItemQuality">Quality</label><input type="number" id="newItemQuality" min="1" max="9" value="1"></div>';
+  h += '<div><label for="newItemName">Search by name</label><input type="text" id="newItemName" list="itemNameOptions" placeholder="e.g. Storm Fang"><datalist id="itemNameOptions"></datalist></div>';
+  h += '<div style="flex:0 0 80px;"><label for="newItemStack">Stack</label><input type="number" id="newItemStack" min="1" value="1"></div>';
+  h += '<div style="flex:0 0 80px;"><label for="newItemQuality">Quality</label><input type="number" id="newItemQuality" min="1" max="9" value="1"></div>';
   h += '<button id="addItemBtn" class="secondary">Add</button>';
   h += '</div>';
   h += '<div class="hint">Pick a suggestion (shown as "PrefabName — Real Name") or type an exact Valheim prefab name directly -- unrecognized exact names still work (the item is stored by its name hash), just without a friendly label until reloaded.</div>';
-  h += '<div class="section-title" style="margin-top:22px;">Inventory (' + dto.inventory.length + ' items' + (dto._pendingAdd.length ? ' + ' + dto._pendingAdd.length + ' pending' : '') + ')</div>';
+  h += '<div class="section-title" style="margin-top:18px;">Browse by Type</div>';
+  h += '<div class="hint" style="margin-bottom:6px;">Don\'t know the name? Open a category, then drag an icon onto a free inventory slot, or click it to add at the next free slot.</div>';
+  h += '<div class="cat-browser" id="catBrowser"><div class="cat-loading">Loading item catalog&hellip;</div></div>';
+  h += '</div>'; // inv-col-left
+
+  h += '<div class="inv-col-right">';
+  h += '<div class="section-title">Inventory (' + dto.inventory.length + ' items' + (dto._pendingAdd.length ? ' + ' + dto._pendingAdd.length + ' pending' : '') + ')</div>';
   if (dto.inventory.length === 0 && dto._pendingAdd.length === 0) {
     h += '<div class="empty">No items.</div>';
   } else {
@@ -587,6 +612,8 @@ function renderInventoryTab() {
          '<span>drag a slot to move it &middot; click to edit</span></div>';
     h += renderSelectedItemDetail();
   }
+  h += '</div>'; // inv-col-right
+  h += '</div>'; // inv-two-col
   return h;
 }
 
@@ -763,13 +790,9 @@ function wireTabEvents() {
   }));
 
   const beardEl = document.getElementById('beardPicker');
-  if (beardEl) beardEl.addEventListener('change', () => {
-    dto.beard = prefabFromPicked(beardEl.value, dto.beard);
-  });
+  if (beardEl) beardEl.addEventListener('change', () => { dto.beard = beardEl.value; });
   const hairStyleEl = document.getElementById('hairPicker');
-  if (hairStyleEl) hairStyleEl.addEventListener('change', () => {
-    dto.hair = prefabFromPicked(hairStyleEl.value, dto.hair);
-  });
+  if (hairStyleEl) hairStyleEl.addEventListener('change', () => { dto.hair = hairStyleEl.value; });
 
   document.querySelectorAll('.skill-slider').forEach(el => {
     el.addEventListener('input', () => {
@@ -816,16 +839,6 @@ function wireTabEvents() {
     });
     rowsEl.addEventListener('change', () => renderTabContent());
   }
-
-  const goldBtn = document.getElementById('addGoldBtn');
-  if (goldBtn) goldBtn.addEventListener('click', () => {
-    const amt = parseInt(document.getElementById('goldAmount').value || "0", 10);
-    if (amt > 0) {
-      dto.pendingGold = (dto.pendingGold || 0) + amt;
-      document.getElementById('goldHint').textContent = 'Pending: +' + dto.pendingGold + ' gold on next save';
-      document.getElementById('goldAmount').value = '';
-    }
-  });
 
   document.querySelectorAll('.remove-btn').forEach(el => el.addEventListener('click', () => {
     const idx = parseInt(el.dataset.idx, 10);
@@ -886,28 +899,10 @@ function wireTabEvents() {
     renderTabContent();
   }));
 
-  const addTrophyBtn = document.getElementById('addTrophyBtn');
-  if (addTrophyBtn) addTrophyBtn.addEventListener('click', () => {
-    const raw = document.getElementById('trophyPicker').value.trim();
-    if (!raw) return;
-    const prefab = prefabFromPicked(raw, raw);
-    dto._pendingAddTrophies.push({ prefab, label: raw });
-    document.getElementById('trophyPicker').value = '';
-    renderTabContent();
-  });
-  document.querySelectorAll('.cancel-trophy-add-btn').forEach(el => el.addEventListener('click', () => {
-    dto._pendingAddTrophies.splice(parseInt(el.dataset.i, 10), 1);
-    renderTabContent();
-  }));
-  document.querySelectorAll('.trophy-remove-btn').forEach(el => el.addEventListener('click', () => {
-    const prefab = el.dataset.prefab;
-    if (dto._pendingRemoveTrophies.includes(prefab)) {
-      dto._pendingRemoveTrophies = dto._pendingRemoveTrophies.filter(p => p !== prefab);
-    } else {
-      dto._pendingRemoveTrophies.push(prefab);
-    }
-    renderTabContent();
-  }));
+  const gpEl = document.getElementById('guardianPower');
+  if (gpEl) gpEl.addEventListener('change', () => { dto.guardianPower = gpEl.value; });
+  const gpcEl = document.getElementById('guardianPowerCooldown');
+  if (gpcEl) gpcEl.addEventListener('input', () => { dto.guardianPowerCooldown = parseFloat(gpcEl.value || "0"); });
 
   const unlockRecipesBtn = document.getElementById('unlockRecipesBtn');
   if (unlockRecipesBtn) unlockRecipesBtn.addEventListener('click', () => {
@@ -931,6 +926,7 @@ function wireTabEvents() {
   }));
 
   ensureItemNameOptions();
+  if (document.getElementById('catBrowser')) renderItemCatalogInto('catBrowser');
 }
 
 function wireInventoryDragAndDrop() {
@@ -956,11 +952,101 @@ function wireInventoryDragAndDrop() {
       el.classList.remove('drag-over');
       const raw = ev.dataTransfer.getData('text/plain');
       if (!raw) return;
-      const [kind, idxStr] = raw.split(':');
       const targetX = parseInt(el.dataset.x, 10), targetY = parseInt(el.dataset.y, 10);
+      if (raw.startsWith('newitem:')) {
+        addCatalogItemAt(raw.slice('newitem:'.length), targetX, targetY);
+        return;
+      }
+      const [kind, idxStr] = raw.split(':');
       moveInventoryEntry(kind, parseInt(idxStr, 10), targetX, targetY);
     });
   });
+}
+
+// --- item catalog browser (drag-and-drop / click-to-add, grouped by type) --
+
+let itemCatalogCache = null;
+let catalogByPrefab = {};
+
+function addCatalogItemAt(prefab, x, y) {
+  const entry = catalogByPrefab[prefab];
+  const label = entry ? entry.name : prefab;
+  dto._pendingAdd.push({ name: prefab, stack: 1, quality: 1, label, gridX: x, gridY: y });
+  renderTabContent();
+}
+
+function addCatalogItemNextFreeSlot(prefab) {
+  const entry = catalogByPrefab[prefab];
+  const label = entry ? entry.name : prefab;
+  dto._pendingAdd.push({ name: prefab, stack: 1, quality: 1, label });
+  renderTabContent();
+}
+
+function groupCatalogByCategory(catalog) {
+  const groups = {}, order = [];
+  catalog.forEach(e => {
+    if (!groups[e.category]) { groups[e.category] = []; order.push(e.category); }
+    groups[e.category].push(e);
+  });
+  return { groups, order };
+}
+
+function renderCategoryBrowserHtml(catalog) {
+  const { groups, order } = groupCatalogByCategory(catalog);
+  let h = '';
+  order.forEach(cat => {
+    h += '<details class="cat-details" data-category="' + escapeHtml(cat) + '">';
+    h += '<summary>' + escapeHtml(cat) + '<span class="cat-count">' + groups[cat].length + '</span></summary>';
+    h += '<div class="cat-body" data-category="' + escapeHtml(cat) + '"></div>';
+    h += '</details>';
+  });
+  return h;
+}
+
+function wireCategoryBrowser(catalog) {
+  const { groups } = groupCatalogByCategory(catalog);
+  document.querySelectorAll('#catBrowser .cat-details').forEach(det => {
+    det.addEventListener('toggle', () => {
+      if (!det.open) return;
+      const body = det.querySelector('.cat-body');
+      if (body.dataset.rendered) return;
+      body.dataset.rendered = '1';
+      let h = '';
+      groups[det.dataset.category].forEach(entry => {
+        h += '<div class="cat-item" draggable="true" data-prefab="' + escapeHtml(entry.prefab) + '" title="' + escapeHtml(entry.name) + '">';
+        h += entry.hasIcon ? slotIconHtml(entry.prefab, true) : '<div class="fallback-icon">' + escapeHtml(entry.prefab.slice(0,3).toUpperCase()) + '</div>';
+        h += '<div class="cat-item-label">' + escapeHtml(entry.name) + '</div>';
+        h += '</div>';
+      });
+      body.innerHTML = h;
+      body.querySelectorAll('.cat-item').forEach(el => {
+        el.addEventListener('dragstart', ev => {
+          ev.dataTransfer.effectAllowed = 'copy';
+          ev.dataTransfer.setData('text/plain', 'newitem:' + el.dataset.prefab);
+        });
+        el.addEventListener('click', () => addCatalogItemNextFreeSlot(el.dataset.prefab));
+      });
+    });
+  });
+}
+
+function renderItemCatalogInto(containerId) {
+  const el = document.getElementById(containerId);
+  if (!el) return;
+  if (itemCatalogCache) {
+    el.innerHTML = renderCategoryBrowserHtml(itemCatalogCache);
+    wireCategoryBrowser(itemCatalogCache);
+    return;
+  }
+  try {
+    itemCatalogCache = JSON.parse(window.valheimApi.itemCatalog()) || [];
+  } catch (e) {
+    itemCatalogCache = [];
+  }
+  catalogByPrefab = {};
+  itemCatalogCache.forEach(e => { catalogByPrefab[e.prefab] = e; });
+  el.innerHTML = renderCategoryBrowserHtml(itemCatalogCache);
+  wireCategoryBrowser(itemCatalogCache);
 }
 
 function findRealAt(x, y) {
@@ -1033,11 +1119,31 @@ function ensureOptionsSync(listId, apiFn) {
   list.innerHTML = optionsCache[apiFn].map(n => '<option value="' + escapeHtml(n) + '">').join('');
 }
 
+function populateSelectFromApi(selectId, apiFn, currentValue) {
+  const sel = document.getElementById(selectId);
+  if (!sel) return;
+  if (!optionsCache[apiFn]) {
+    try { optionsCache[apiFn] = JSON.parse(window.valheimApi[apiFn]()) || []; }
+    catch (e) { optionsCache[apiFn] = []; }
+  }
+  let html = '';
+  let matched = !currentValue;
+  optionsCache[apiFn].forEach(o => {
+    const prefab = o.includes(' — ') ? o.split(' — ')[0].trim() : o;
+    const isSel = prefab === currentValue;
+    if (isSel) matched = true;
+    html += '<option value="' + escapeHtml(prefab) + '"' + (isSel ? ' selected' : '') + '>' + escapeHtml(o) + '</option>';
+  });
+  if (!matched) {
+    html = '<option value="' + escapeHtml(currentValue) + '" selected>' + escapeHtml(currentValue) + '</option>' + html;
+  }
+  sel.innerHTML = html;
+}
+
 function ensureItemNameOptions() {
   ensureOptionsSync('itemNameOptions', 'itemNames');
-  ensureOptionsSync('beardOptions', 'beardNames');
-  ensureOptionsSync('hairOptions', 'hairNames');
-  ensureOptionsSync('trophyOptions', 'trophyNames');
+  populateSelectFromApi('beardPicker', 'beardNames', dto.beard);
+  populateSelectFromApi('hairPicker', 'hairNames', dto.hair);
   ensureOptionsSync('foodOptions', 'itemNames');
 }
 
@@ -1093,12 +1199,11 @@ function saveAndDownload() {
     }),
     powersOn: (dto.powers || []).filter(p => p.unlocked).map(p => p.key),
     powersOff: (dto.powers || []).filter(p => !p.unlocked).map(p => p.key),
+    guardianPower: dto.guardianPower || '',
+    guardianPowerCooldown: dto.guardianPowerCooldown || 0,
   };
-  if (dto.pendingGold) payload.addGold = dto.pendingGold;
   if (dto._pendingRemove && dto._pendingRemove.length > 0) payload.removeIndexes = dto._pendingRemove;
   if (dto._pendingAdd && dto._pendingAdd.length > 0) payload.addItems = dto._pendingAdd;
-  if (dto._pendingAddTrophies && dto._pendingAddTrophies.length > 0) payload.addTrophies = dto._pendingAddTrophies.map(t => t.prefab);
-  if (dto._pendingRemoveTrophies && dto._pendingRemoveTrophies.length > 0) payload.removeTrophies = dto._pendingRemoveTrophies;
   if (dto._unlockRecipes) payload.unlockAllRecipes = true;
   if (dto._unlockMaterials) payload.unlockAllMaterials = true;
   if (dto.foods && dto.foods.length > 0) {

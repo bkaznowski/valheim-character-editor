@@ -602,6 +602,24 @@ func SetBeardHair(c *Character, beard *string, hair *string) []Edit {
 	return edits
 }
 
+// SetGuardianPower changes the character's currently active Guardian
+// (Forsaken) Power buff (pass "" to clear it) and/or its remaining
+// cooldown. Both fields always exist in the byte layout for any real save
+// (version >= 24, effectively all saves), so this is always a direct
+// in-place edit -- a variable-length replace for the power's key string,
+// a fixed-width replace for the cooldown float.
+func SetGuardianPower(c *Character, power *string, cooldown *float32) []Edit {
+	var edits []Edit
+	if power != nil {
+		off := c.Offsets["guardianPower"]
+		edits = append(edits, Edit{Start: off[0], End: off[1], NewBytes: encodeString(*power)})
+	}
+	if cooldown != nil {
+		edits = append(edits, EditFloat(c.Offsets["guardianPowerCooldown"], *cooldown))
+	}
+	return edits
+}
+
 // SetFood changes an active food buff slot's item and/or remaining
 // time/health. Pass nil for a value you don't want to change. Changing the
 // name is a variable-length replace since food names differ in length.

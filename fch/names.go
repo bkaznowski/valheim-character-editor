@@ -61,6 +61,11 @@ func init() {
 	if err := json.Unmarshal(maxQualityRaw, &maxQualityByPrefab); err != nil {
 		panic("fch: malformed max_quality.json: " + err.Error())
 	}
+
+	itemTypeByPrefab = map[string]int{}
+	if err := json.Unmarshal(itemTypesRaw, &itemTypeByPrefab); err != nil {
+		panic("fch: malformed item_types.json: " + err.Error())
+	}
 }
 
 // DefaultMaxQuality is used for a prefab we have no extracted max-quality
@@ -184,8 +189,109 @@ var locKeysRaw []byte
 //go:embed max_quality.json
 var maxQualityRaw []byte
 
+//go:embed item_types.json
+var itemTypesRaw []byte
+
 var locKeyByPrefab map[string]string
 var maxQualityByPrefab map[string]int
+
+// itemTypeByPrefab maps a prefab name to Valheim's own raw ItemType enum
+// value (extracted from the installed game's ItemDrop.m_shared.m_itemType).
+// The mapping from that raw int to a human browsing category below was
+// derived empirically -- by cross-referencing hundreds of well-known
+// prefabs (e.g. every "Helmet*" prefab, every "Trophy*" prefab) against
+// their actual scanned raw value and taking the dominant value per group --
+// rather than by trusting the enum's in-game display names, since a
+// metadata-parsing quirk made the assembly's own enum-constant table
+// unreliable to read directly for this project.
+var itemTypeByPrefab map[string]int
+
+// ItemCategory buckets a prefab into a human-browsable group, for a
+// by-type item picker. Prefabs with no known raw type (not a real item) or
+// whose raw type is "Customization" (hair/beard styles, not addable
+// inventory items) return "".
+func ItemCategory(prefab string) string {
+	raw, ok := itemTypeByPrefab[prefab]
+	if !ok {
+		return ""
+	}
+	switch raw {
+	case 3, 4, 22: // one-handed weapons, bows, staves
+		return "Weapons"
+	case 14: // two-handed weapons & staves, but also pickaxes -- split by name
+		if strings.HasPrefix(prefab, "Pickaxe") {
+			return "Tools"
+		}
+		return "Weapons"
+	case 5:
+		return "Shields"
+	case 6, 7, 11, 17:
+		return "Armor"
+	case 9, 23:
+		return "Ammo"
+	case 15, 19:
+		return "Tools"
+	case 2:
+		return "Food & Potions"
+	case 1, 21:
+		return "Materials & Resources"
+	case 13:
+		return "Trophies"
+	case 18:
+		return "Utility"
+	case 24:
+		return "Trinkets"
+	case 16:
+		return "Misc"
+	case 10: // Customization (hair/beard styles) -- not a real inventory item
+		return ""
+	default:
+		return ""
+	}
+}
+
+// ItemCatalogEntry is one browsable entry in the by-type item picker.
+type ItemCatalogEntry struct {
+	Prefab   string `json:"prefab"`
+	Name     string `json:"name"`
+	Category string `json:"category"`
+	HasIcon  bool   `json:"hasIcon"`
+}
+
+// itemCategoryOrder fixes a sensible display order for KnownItemCatalog,
+// rather than sorting categories alphabetically.
+var itemCategoryOrder = []string{
+	"Weapons", "Shields", "Armor", "Ammo", "Tools",
+	"Food & Potions", "Materials & Resources", "Trophies", "Utility", "Trinkets", "Misc",
+}
+
+// KnownItemCatalog returns every known real item grouped into browsing
+// categories (see ItemCategory), sorted by category (in itemCategoryOrder)
+// then display name -- for a by-type item picker, as an alternative to
+// searching by name.
+func KnownItemCatalog() []ItemCatalogEntry {
+	catRank := map[string]int{}
+	for i, c := range itemCategoryOrder {
+		catRank[c] = i
+	}
+
+	var out []ItemCatalogEntry
+	for prefab, display := range displayNameByPrefab {
+		cat := ItemCategory(prefab)
+		if cat == "" {
+			continue
+		}
+		out = append(out, ItemCatalogEntry{Prefab: prefab, Name: display, Category: cat, HasIcon: HasIcon(prefab)})
+	}
+	sort.Slice(out, func(i, j int) bool {
+		ri, rj := catRank[out[i].Category], catRank[out[j].Category]
+		if ri != rj {
+			return ri < rj
+		}
+		return out[i].Name < out[j].Name
+	})
+	return out
+}
 
 // AllRecipeKeys returns the localization-key form ("$item_swordiron") of
 // every known item/piece prefab, suitable for bulk-adding to a character's

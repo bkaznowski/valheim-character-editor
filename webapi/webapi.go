@@ -78,17 +78,19 @@ type CharacterDTO struct {
 	HairName      string      `json:"hairName"`
 	SkinColor     [3]float32  `json:"skinColor"`
 	HairColor     [3]float32  `json:"hairColor"`
-	Skills        []SkillDTO  `json:"skills"`
-	Inventory     []ItemDTO   `json:"inventory"`
-	RecipeCount   int         `json:"recipeCount"`
-	MaterialCount int         `json:"materialCount"`
-	StationCount  int         `json:"stationCount"`
-	InventoryRows int         `json:"inventoryRows"`
-	InventoryCols int         `json:"inventoryCols"`
-	DefaultRows   int         `json:"defaultRows"`
-	Powers        []PowerDTO  `json:"powers"`
-	Trophies      []TrophyDTO `json:"trophies"`
-	Foods         []FoodDTO   `json:"foods"`
+	Skills                []SkillDTO  `json:"skills"`
+	Inventory             []ItemDTO   `json:"inventory"`
+	RecipeCount           int         `json:"recipeCount"`
+	MaterialCount         int         `json:"materialCount"`
+	StationCount          int         `json:"stationCount"`
+	InventoryRows         int         `json:"inventoryRows"`
+	InventoryCols         int         `json:"inventoryCols"`
+	DefaultRows           int         `json:"defaultRows"`
+	Powers                []PowerDTO  `json:"powers"`
+	Trophies              []TrophyDTO `json:"trophies"`
+	Foods                 []FoodDTO   `json:"foods"`
+	GuardianPower         string      `json:"guardianPower"`
+	GuardianPowerCooldown float32     `json:"guardianPowerCooldown"`
 }
 
 // ToDTO builds the JSON-friendly snapshot of a character sent to the
@@ -117,9 +119,11 @@ func ToDTO(path string, c *fch.Character) CharacterDTO {
 		RecipeCount:   len(c.Recipes),
 		MaterialCount: len(c.KnownMaterial),
 		StationCount:  len(c.Stations),
-		InventoryRows: c.InventoryRows(),
-		InventoryCols: fch.DefaultInventoryWidth,
-		DefaultRows:   fch.DefaultInventoryHeight,
+		InventoryRows:         c.InventoryRows(),
+		InventoryCols:         fch.DefaultInventoryWidth,
+		DefaultRows:           fch.DefaultInventoryHeight,
+		GuardianPower:         c.GuardianPower,
+		GuardianPowerCooldown: c.GuardianPowerCooldown,
 	}
 	levelByType := map[int32]fch.Skill{}
 	for _, s := range c.Skills {
@@ -238,9 +242,11 @@ type SaveRequest struct {
 	PowersOff          []string         `json:"powersOff"`
 	AddTrophies        []string         `json:"addTrophies"`
 	RemoveTrophies     []string         `json:"removeTrophies"`
-	UnlockAllRecipes   bool             `json:"unlockAllRecipes"`
-	UnlockAllMaterials bool             `json:"unlockAllMaterials"`
-	Foods              []FoodEdit       `json:"foods"`
+	UnlockAllRecipes      bool       `json:"unlockAllRecipes"`
+	UnlockAllMaterials    bool       `json:"unlockAllMaterials"`
+	Foods                 []FoodEdit `json:"foods"`
+	GuardianPower         *string    `json:"guardianPower"`
+	GuardianPowerCooldown *float32   `json:"guardianPowerCooldown"`
 }
 
 // BuildEdits turns a SaveRequest into the concrete list of byte-splice
@@ -309,6 +315,9 @@ func BuildEdits(sf *fch.SaveFile, sreq SaveRequest) ([]fch.Edit, error) {
 	}
 	if sreq.UnlockAllMaterials {
 		edits = append(edits, fch.AddKnownMaterials(c, fch.AllRecipeKeys())...)
+	}
+	if sreq.GuardianPower != nil || sreq.GuardianPowerCooldown != nil {
+		edits = append(edits, fch.SetGuardianPower(c, sreq.GuardianPower, sreq.GuardianPowerCooldown)...)
 	}
 	for _, fe := range sreq.Foods {
 		if fe.Index < 0 || fe.Index >= len(c.Foods) {

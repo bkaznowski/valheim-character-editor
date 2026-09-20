@@ -92,6 +92,13 @@ type Character struct {
 	Health    float32
 	Stamina   float32
 
+	// GuardianPower is the key of the currently-active Guardian (Forsaken)
+	// Power buff (e.g. "GP_Bonemass"), or "" if none is active.
+	// GuardianPowerCooldown is the remaining cooldown, in the same seconds
+	// unit Valheim itself uses, before another power can be activated.
+	GuardianPower         string
+	GuardianPowerCooldown float32
+
 	Inventory            []InventoryItem
 	InventoryCountOffset Range
 	InventoryEndPos      int // absolute offset right after the last item (insertion point)
@@ -313,10 +320,14 @@ func ParsePlayerData(blob []byte, base int) *Character {
 		r.F32() // timeSinceDeath
 	}
 	if version >= 23 {
-		r.String() // guardianPower
+		p := r.Pos
+		c.GuardianPower = r.String()
+		c.Offsets["guardianPower"] = abs(r.Range(p))
 	}
 	if version >= 24 {
-		r.F32() // guardianPowerCooldown
+		p := r.Pos
+		c.GuardianPowerCooldown = r.F32()
+		c.Offsets["guardianPowerCooldown"] = abs(r.Range(p))
 	}
 	if version == 2 {
 		r.ZDOID()

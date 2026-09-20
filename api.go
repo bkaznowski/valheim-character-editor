@@ -90,6 +90,10 @@ func registerAPI(mux *http.ServeMux) {
 		writeJSON(w, fch.KnownHairOptions())
 	})
 
+	mux.HandleFunc("/api/itemcatalog", func(w http.ResponseWriter, req *http.Request) {
+		writeJSON(w, fch.KnownItemCatalog())
+	})
+
 	mux.HandleFunc("/api/icon", func(w http.ResponseWriter, req *http.Request) {
 		prefab := req.URL.Query().Get("prefab")
 		data := fch.IconPNG(prefab)
