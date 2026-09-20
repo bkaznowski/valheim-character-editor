@@ -215,7 +215,15 @@
   .inv-slot.pending { border: 1px dashed var(--accent-2); background: rgba(215, 181, 109, 0.12); }
   .inv-slot .pending-badge { position: absolute; top: 1px; left: 2px; font-size: 0.52rem; font-weight: 800; color: var(--accent-2); letter-spacing: 0.03em; }
   .inv-slot.drag-over { outline: 2px dashed var(--accent); outline-offset: -2px; }
-  .inv-slot[draggable="true"] { cursor: grab; }
+  .inv-slot.filled { cursor: grab; touch-action: none; }
+  .inv-slot.drag-source-active { opacity: 0.4; }
+  .drag-ghost {
+    position: fixed; width: 46px; height: 46px; pointer-events: none; z-index: 9999;
+    transform: translate(-50%, -50%); opacity: 0.9; border-radius: 7px; overflow: hidden;
+    background: rgba(0,0,0,0.45); box-shadow: 0 6px 16px rgba(0,0,0,0.5);
+  }
+  .drag-ghost img { width: 100%; height: 100%; object-fit: contain; padding: 3px; box-sizing: border-box; }
+  .drag-ghost .fallback-icon { width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; font-size: 0.6rem; font-weight: 700; color: var(--muted); }
   .inv-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 8px; font-size: 0.72rem; color: var(--muted); }
   .inv-legend span { display: inline-flex; align-items: center; gap: 4px; }
   .inv-legend .dot { width: 6px; height: 6px; border-radius: 50%; }
@@ -279,7 +287,9 @@
   .cat-item {
     aspect-ratio: 1; border-radius: 7px; background: rgba(0,0,0,0.25); border: 1px solid rgba(255,255,255,0.08);
     cursor: grab; position: relative; overflow: hidden; transition: transform 0.1s ease, border-color 0.15s ease;
+    touch-action: none;
   }
+  .cat-item.drag-source-active { opacity: 0.4; }
   @media (prefers-color-scheme: light) { .cat-item { background: rgba(255,255,255,0.4); border-color: rgba(0,0,0,0.12); } }
   .cat-item:hover { transform: translateY(-1px); border-color: var(--accent); }
   .cat-item.cat-item-match { border-color: var(--accent-2); box-shadow: 0 0 0 1px var(--accent-2); }
@@ -658,7 +668,7 @@ function renderInventoryGrid() {
         if (removing) cls += ' removing';
         if (selected) cls += ' selected';
         if (it.equipped) cls += ' equipped';
-        h += '<div class="' + cls + '" data-x="' + x + '" data-y="' + y + '" data-kind="real" data-idx="' + it.index + '" draggable="' + (!removing) + '" title="' + escapeHtml(it.name || ('Unknown hash ' + it.hash)) + '">';
+        h += '<div class="' + cls + '" data-x="' + x + '" data-y="' + y + '" data-kind="real" data-idx="' + it.index + '" draggable="false" title="' + escapeHtml(it.name || ('Unknown hash ' + it.hash)) + '">';
         if (it.hasIcon) h += slotIconHtml(it.prefabName, true);
         else h += '<div class="fallback-icon">' + escapeHtml(fallbackLabel(it)) + '</div>';
         if (it.hasStack && it.stack > 1) h += '<div class="stack-badge">' + it.stack + '</div>';
@@ -668,7 +678,7 @@ function renderInventoryGrid() {
       } else {
         const ni = entry.item;
         const selected = dto._selectedIndex === 'p' + entry.pendingIndex;
-        h += '<div class="inv-slot filled pending" data-x="' + x + '" data-y="' + y + '" data-kind="pending" data-idx="' + entry.pendingIndex + '" draggable="true" title="' + escapeHtml(ni.label || ni.name) + ' (pending)">';
+        h += '<div class="inv-slot filled pending" data-x="' + x + '" data-y="' + y + '" data-kind="pending" data-idx="' + entry.pendingIndex + '" draggable="false" title="' + escapeHtml(ni.label || ni.name) + ' (pending)">';
         h += slotIconHtml(ni.name, undefined);
         if (ni.stack > 1) h += '<div class="stack-badge">' + ni.stack + '</div>';
         if (ni.quality > 1) h += '<div class="quality-dots">' + '<span></span>'.repeat(Math.min(ni.quality, 5)) + '</div>';
@@ -894,44 +904,126 @@ function wireTabEvents() {
   }));
 
   ensureItemNameOptions();
-  if (document.getElementById('catBrowser')) {
-    renderItemCatalogInto('catBrowser');
-    wireRemoveDropZone();
-  }
+  if (document.getElementById('catBrowser')) renderItemCatalogInto('catBrowser');
 }
+
+// --- pointer-based drag and drop --------------------------------------
+//
+// Native HTML5 drag-and-drop (draggable="true" + dragstart/dragover/drop)
+// turned out not to fire reliably for real mouse drags in practice, so
+// dragging is implemented from scratch on top of Pointer Events instead --
+// these fire consistently for mouse, touch and pen, and we fully control
+// the whole sequence rather than depending on the browser's native drag
+// session. A small movement threshold distinguishes a drag from a plain
+// click (which the existing click handlers on the same elements still
+// handle normally).
+
+let pointerDrag = null; // {kind, data, sourceEl, startX, startY, moved, ghostEl, pointerId}
 
 function wireInventoryDragAndDrop() {
   const grid = document.querySelector('.inv-grid');
   if (!grid) return;
-
-  grid.querySelectorAll('.inv-slot[draggable="true"]').forEach(el => {
-    el.addEventListener('dragstart', ev => {
-      ev.dataTransfer.effectAllowed = 'move';
-      ev.dataTransfer.setData('text/plain', el.dataset.kind + ':' + el.dataset.idx);
-    });
+  grid.querySelectorAll('.inv-slot.filled').forEach(el => {
+    if (el.dataset.kind === 'real' && el.classList.contains('removing')) return;
+    el.addEventListener('pointerdown', ev => startPointerDrag(ev, el, el.dataset.kind, { idx: parseInt(el.dataset.idx, 10) }));
   });
+}
 
-  grid.querySelectorAll('.inv-slot').forEach(el => {
-    el.addEventListener('dragover', ev => {
-      ev.preventDefault();
-      ev.dataTransfer.dropEffect = 'move';
-      el.classList.add('drag-over');
-    });
-    el.addEventListener('dragleave', () => el.classList.remove('drag-over'));
-    el.addEventListener('drop', ev => {
-      ev.preventDefault();
-      el.classList.remove('drag-over');
-      const raw = ev.dataTransfer.getData('text/plain');
-      if (!raw) return;
-      const targetX = parseInt(el.dataset.x, 10), targetY = parseInt(el.dataset.y, 10);
-      if (raw.startsWith('newitem:')) {
-        addCatalogItemAt(raw.slice('newitem:'.length), targetX, targetY);
-        return;
-      }
-      const [kind, idxStr] = raw.split(':');
-      moveInventoryEntry(kind, parseInt(idxStr, 10), targetX, targetY);
-    });
-  });
+function startPointerDrag(ev, sourceEl, kind, data) {
+  if (ev.button !== undefined && ev.button !== 0) return; // primary button/touch only
+  pointerDrag = { kind, data, sourceEl, startX: ev.clientX, startY: ev.clientY, moved: false, ghostEl: null, pointerId: ev.pointerId };
+  sourceEl.setPointerCapture(ev.pointerId);
+  sourceEl.addEventListener('pointermove', onPointerDragMove);
+  sourceEl.addEventListener('pointerup', onPointerDragEnd);
+  sourceEl.addEventListener('pointercancel', onPointerDragEnd);
+}
+
+function onPointerDragMove(ev) {
+  if (!pointerDrag) return;
+  const dx = ev.clientX - pointerDrag.startX, dy = ev.clientY - pointerDrag.startY;
+  if (!pointerDrag.moved && Math.hypot(dx, dy) > 6) {
+    pointerDrag.moved = true;
+    pointerDrag.sourceEl.classList.add('drag-source-active');
+    pointerDrag.ghostEl = createDragGhost(pointerDrag);
+    document.body.appendChild(pointerDrag.ghostEl);
+  }
+  if (pointerDrag.moved) {
+    pointerDrag.ghostEl.style.left = ev.clientX + 'px';
+    pointerDrag.ghostEl.style.top = ev.clientY + 'px';
+    updateDropTargetHighlight(ev.clientX, ev.clientY);
+  }
+}
+
+function onPointerDragEnd(ev) {
+  if (!pointerDrag) return;
+  const state = pointerDrag;
+  state.sourceEl.removeEventListener('pointermove', onPointerDragMove);
+  state.sourceEl.removeEventListener('pointerup', onPointerDragEnd);
+  state.sourceEl.removeEventListener('pointercancel', onPointerDragEnd);
+  state.sourceEl.classList.remove('drag-source-active');
+  if (state.ghostEl) state.ghostEl.remove();
+  clearDropTargetHighlights();
+  pointerDrag = null;
+  if (state.moved && ev.type !== 'pointercancel') handlePointerDrop(ev.clientX, ev.clientY, state);
+}
+
+function createDragGhost(state) {
+  const g = document.createElement('div');
+  g.className = 'drag-ghost';
+  if (state.kind === 'newitem') {
+    const entry = catalogByPrefab[state.data.prefab];
+    g.innerHTML = (entry && entry.hasIcon) ? slotIconHtml(state.data.prefab, true) : '<div class="fallback-icon">' + escapeHtml(state.data.prefab.slice(0,3).toUpperCase()) + '</div>';
+  } else {
+    const srcVisual = state.sourceEl.querySelector('img, .fallback-icon');
+    g.innerHTML = srcVisual ? srcVisual.outerHTML : '';
+  }
+  g.style.left = state.startX + 'px';
+  g.style.top = state.startY + 'px';
+  return g;
+}
+
+function findInvSlotAt(x, y) {
+  const el = document.elementFromPoint(x, y);
+  return el ? el.closest('.inv-slot') : null;
+}
+function findRemoveZoneAt(x, y) {
+  const el = document.elementFromPoint(x, y);
+  return el ? el.closest('#invColLeft') : null;
+}
+
+function clearDropTargetHighlights() {
+  const over = document.querySelector('.inv-slot.drag-over');
+  if (over) over.classList.remove('drag-over');
+  const zone = document.getElementById('invColLeft');
+  if (zone) zone.classList.remove('drag-remove-over');
+}
+
+function updateDropTargetHighlight(x, y) {
+  clearDropTargetHighlights();
+  const slot = findInvSlotAt(x, y);
+  if (slot) { slot.classList.add('drag-over'); return; }
+  const zone = findRemoveZoneAt(x, y);
+  if (zone) zone.classList.add('drag-remove-over');
+}
+
+function handlePointerDrop(x, y, state) {
+  const slot = findInvSlotAt(x, y);
+  if (slot) {
+    const targetX = parseInt(slot.dataset.x, 10), targetY = parseInt(slot.dataset.y, 10);
+    if (state.kind === 'newitem') addCatalogItemAt(state.data.prefab, targetX, targetY);
+    else moveInventoryEntry(state.kind, state.data.idx, targetX, targetY);
+    return;
+  }
+  if (state.kind === 'newitem') return; // dropped back onto the browser -- no-op
+  const zone = findRemoveZoneAt(x, y);
+  if (!zone) return;
+  if (state.kind === 'real') {
+    if (!dto._pendingRemove.includes(state.data.idx)) dto._pendingRemove.push(state.data.idx);
+  } else if (state.kind === 'pending') {
+    dto._pendingAdd.splice(state.data.idx, 1);
+  }
+  dto._selectedIndex = null;
+  renderTabContent();
 }
 
 // --- item catalog browser (drag-and-drop / click-to-add, grouped by type) --
@@ -982,17 +1074,14 @@ function ensureCategoryBodyRendered(det) {
   body.dataset.rendered = '1';
   let h = '';
   catalogGroupsCache[det.dataset.category].forEach(entry => {
-    h += '<div class="cat-item" draggable="true" data-prefab="' + escapeHtml(entry.prefab) + '" data-name="' + escapeHtml(entry.name.toLowerCase()) + '" title="' + escapeHtml(entry.name) + '">';
+    h += '<div class="cat-item" draggable="false" data-prefab="' + escapeHtml(entry.prefab) + '" data-name="' + escapeHtml(entry.name.toLowerCase()) + '" title="' + escapeHtml(entry.name) + '">';
     h += entry.hasIcon ? slotIconHtml(entry.prefab, true) : '<div class="fallback-icon">' + escapeHtml(entry.prefab.slice(0,3).toUpperCase()) + '</div>';
     h += '<div class="cat-item-label">' + escapeHtml(entry.name) + '</div>';
     h += '</div>';
   });
   body.innerHTML = h;
   body.querySelectorAll('.cat-item').forEach(el => {
-    el.addEventListener('dragstart', ev => {
-      ev.dataTransfer.effectAllowed = 'copy';
-      ev.dataTransfer.setData('text/plain', 'newitem:' + el.dataset.prefab);
-    });
+    el.addEventListener('pointerdown', ev => startPointerDrag(ev, el, 'newitem', { prefab: el.dataset.prefab }));
     el.addEventListener('click', () => addCatalogItemNextFreeSlot(el.dataset.prefab));
   });
   return body;
@@ -1042,33 +1131,6 @@ function filterCategoryBrowser(query) {
 // Lets an existing inventory item be dragged back onto the item browser to
 // remove it -- a real item is marked pending-remove (same as the Remove
 // button), a not-yet-saved pending item is simply un-added.
-function wireRemoveDropZone() {
-  const zone = document.getElementById('invColLeft');
-  if (!zone) return;
-  zone.addEventListener('dragover', ev => {
-    ev.preventDefault();
-    zone.classList.add('drag-remove-over');
-  });
-  zone.addEventListener('dragleave', ev => {
-    if (!zone.contains(ev.relatedTarget)) zone.classList.remove('drag-remove-over');
-  });
-  zone.addEventListener('drop', ev => {
-    ev.preventDefault();
-    zone.classList.remove('drag-remove-over');
-    const raw = ev.dataTransfer.getData('text/plain');
-    if (!raw || raw.startsWith('newitem:')) return;
-    const [kind, idxStr] = raw.split(':');
-    const idx = parseInt(idxStr, 10);
-    if (kind === 'real') {
-      if (!dto._pendingRemove.includes(idx)) dto._pendingRemove.push(idx);
-    } else if (kind === 'pending') {
-      dto._pendingAdd.splice(idx, 1);
-    }
-    dto._selectedIndex = null;
-    renderTabContent();
-  });
-}
-
 async function renderItemCatalogInto(containerId) {
   const el = document.getElementById(containerId);
   if (!el) return;
