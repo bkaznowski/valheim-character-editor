@@ -203,7 +203,7 @@
   .inv-slot.selected { border-color: var(--accent-2); box-shadow: 0 0 0 2px var(--accent-glow); }
   .inv-slot.equipped { border-color: var(--ok-text); }
   .inv-slot.removing { opacity: 0.35; }
-  .inv-slot img { width: 100%; height: 100%; object-fit: contain; padding: 3px; box-sizing: border-box; }
+  .inv-slot img { width: 100%; height: 100%; object-fit: contain; padding: 3px; box-sizing: border-box; -webkit-user-drag: none; user-select: none; }
   .inv-slot .fallback-icon { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 0.62rem; font-weight: 700; color: var(--muted); text-align: center; padding: 2px; line-height: 1.1; }
   .inv-slot .stack-badge {
     position: absolute; bottom: 1px; right: 3px; font-size: 0.66rem; font-weight: 700;
@@ -251,7 +251,7 @@
   .item-detail .detail-title { font-weight: 700; font-size: 0.98rem; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
   .item-detail .detail-fields { display: flex; gap: 10px; margin-top: 10px; flex-wrap: wrap; }
   .item-detail .detail-fields > div { flex: 1; min-width: 80px; }
-  .item-detail .detail-fields label { margin-bottom: 4px; }
+  .item-detail .detail-fields label { margin-bottom: 4px; min-height: 2.3em; }
 
   .inv-two-col { display: flex; gap: 22px; align-items: flex-start; }
   .inv-col-left { flex: 1; min-width: 260px; border-radius: 12px; transition: box-shadow 0.15s ease; }
@@ -283,7 +283,7 @@
   @media (prefers-color-scheme: light) { .cat-item { background: rgba(255,255,255,0.4); border-color: rgba(0,0,0,0.12); } }
   .cat-item:hover { transform: translateY(-1px); border-color: var(--accent); }
   .cat-item.cat-item-match { border-color: var(--accent-2); box-shadow: 0 0 0 1px var(--accent-2); }
-  .cat-item img { width: 100%; height: 100%; object-fit: contain; padding: 3px; box-sizing: border-box; }
+  .cat-item img { width: 100%; height: 100%; object-fit: contain; padding: 3px; box-sizing: border-box; -webkit-user-drag: none; user-select: none; }
   .cat-item .fallback-icon { font-size: 0.56rem; }
   .cat-item .cat-item-label {
     position: absolute; inset: auto 0 0 0; font-size: 0.56rem; text-align: center; padding: 1px 2px;
@@ -633,7 +633,7 @@ function gridSlots() {
 function slotIconHtml(prefabName, hasIcon) {
   if (hasIcon === false) return '';
   const fallback = (prefabName || '?').slice(0, 3).toUpperCase();
-  return '<img src="/api/icon?prefab=' + encodeURIComponent(prefabName) + '" alt="" data-fallback="' + escapeHtml(fallback) + '" onerror="handleIconError(this)">';
+  return '<img src="/api/icon?prefab=' + encodeURIComponent(prefabName) + '" alt="" draggable="false" data-fallback="' + escapeHtml(fallback) + '" onerror="handleIconError(this)">';
 }
 
 function handleIconError(img) {
